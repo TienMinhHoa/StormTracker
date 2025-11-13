@@ -1,0 +1,24 @@
+# Node.js
+node_modules/
+**/node_modules/
+
+# Next.js
+.next/
+**/.next/
+
+# Python virtual environments
+.venv/
+**/.venv/
+env/
+.venv/
+
+# Python bytecode / caches
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment files
+.env
+**/.env
+*.env
