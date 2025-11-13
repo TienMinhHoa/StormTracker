@@ -12,16 +12,14 @@ Quick instructions to install dependencies and run with pnpm.
 ## Install project dependencies
 
 ```bash
-cd /D:/pypy/Procon/StormTracker
+cd /D:/pypy/Procon/StormTracker/frontend
 pnpm install
 ```
 
-## (Optional) Install the `people` package
-
-If you need a package named `people`:
+## Build
 
 ```bash
-pnpm add people
+pnpm build
 ```
 
 ## Run
@@ -30,9 +28,6 @@ Common scripts used by the project (replace with actual script names in package.
 
 ```bash
 pnpm run dev     # start dev server
-pnpm run start   # start production server
-pnpm run build   # build for production
-pnpm run test    # run tests
 ```
 
 Edit package.json scripts as needed.
