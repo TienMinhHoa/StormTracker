@@ -1,24 +1,83 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Windy Clone
 
-## Getting Started
+Ứng dụng web hiển thị bản đồ thời tiết giống [Windy.com](https://windy.com), sử dụng Next.js, Mapbox GL và GeoServer.
 
-First, run the development server:
+## 🚀 Quick Start
+
+**Muốn chạy ngay?** → Xem [QUICK_START.md](./QUICK_START.md)
+
+## Tính năng
+
+- 🗺️ Bản đồ tương tác với Mapbox GL JS
+- 🎨 Giao diện tối màu giống Windy.com
+- 🌬️ Hiển thị layer gió từ GeoServer (TIFF)
+- ⚡ Next.js 16 với App Router
+- 🎯 TypeScript support
+
+## Cài đặt
+
+### 1. Clone và cài đặt dependencies
+
+```bash
+npm install
+```
+
+### 2. Cấu hình biến môi trường
+
+Tạo file `.env.local` với nội dung:
+
+```bash
+# Mapbox Access Token (bắt buộc)
+# Lấy token tại: https://account.mapbox.com/access-tokens/
+NEXT_PUBLIC_MAPBOX_TOKEN=your_mapbox_token_here
+
+# GeoServer Configuration (tùy chọn)
+NEXT_PUBLIC_GEOSERVER_URL=http://localhost:8080/geoserver/wms
+NEXT_PUBLIC_GEOSERVER_WORKSPACE=your_workspace
+NEXT_PUBLIC_GEOSERVER_WIND_LAYER=wind_data
+```
+
+### 3. Chạy development server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Mở [http://localhost:3000](http://localhost:3000) trong browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Cấu hình GeoServer
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Xem hướng dẫn chi tiết trong file [GEOSERVER_SETUP.md](./GEOSERVER_SETUP.md).
+
+### Tóm tắt:
+1. Cài đặt GeoServer
+2. Upload file TIFF chứa dữ liệu gió
+3. Publish layer trong GeoServer
+4. Cập nhật URL và tên layer trong `.env.local`
+
+## Cấu trúc dự án
+
+```
+windy-clone/
+├── app/
+│   ├── components/
+│   │   └── Map.tsx           # Component bản đồ chính
+│   ├── config/
+│   │   └── geoserver.config.ts  # Cấu hình GeoServer
+│   ├── page.tsx              # Trang chủ
+│   └── globals.css           # Global styles
+├── public/                   # Static files
+├── .env.local               # Biến môi trường (tạo mới)
+└── package.json
+```
+
+## Công nghệ sử dụng
+
+- **Next.js 16** - React framework
+- **Mapbox GL JS** - Interactive maps
+- **TypeScript** - Type safety
+- **Tailwind CSS** - Styling
+- **GeoServer** - Geospatial data server
 
 ## Learn More
 
