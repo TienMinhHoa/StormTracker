@@ -1,0 +1,229 @@
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+import mapboxgl from 'mapbox-gl';
+import { fetchGFSWindData, WindData } from '../services/gfsService';
+import { renderWindyStyle } from '../utils/windyColorScale';
+
+interface WindLayerProps {
+  map: mapboxgl.Map | null;
+  enabled?: boolean;
+  opacity?: number;
+  forecastHour?: number; // Giờ dự báo (0 = hiện tại, 3 = +3h, etc.)
+  onLoadingChange?: (loading: boolean) => void;
+  onDataLoaded?: (data: WindData) => void;
+}
+
+export default function WindLayer({
+  map,
+  enabled = true,
+  opacity = 0.7,
+  forecastHour = 0,
+  onLoadingChange,
+  onDataLoaded
+}: WindLayerProps) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const loadHandlerRef = useRef<(() => void) | null>(null);
+  const styleLoadHandlerRef = useRef<(() => void) | null>(null);
+  const [windData, setWindData] = useState<WindData | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Fetch dữ liệu GFS
+  useEffect(() => {
+    if (!enabled) return;
+
+    const loadWindData = async () => {
+      setIsLoading(true);
+      onLoadingChange?.(true);
+
+      try {
+        const data = await fetchGFSWindData(forecastHour);
+        setWindData(data);
+        onDataLoaded?.(data);
+        console.log(`🌪️ Loaded GFS wind data for +${forecastHour}h forecast`);
+      } catch (error) {
+        console.error('Failed to load wind data:', error);
+      } finally {
+        setIsLoading(false);
+        onLoadingChange?.(false);
+      }
+    };
+
+    loadWindData();
+  }, [enabled, forecastHour, onLoadingChange, onDataLoaded]);
+
+  // Render layer khi có dữ liệu
+  useEffect(() => {
+    if (!map || !enabled || !windData || !canvasRef.current) {
+      console.log('⏭️ Skipping wind layer render:', { 
+        hasMap: !!map, 
+        enabled, 
+        hasWindData: !!windData, 
+        hasCanvas: !!canvasRef.current 
+      });
+      return;
+    }
+
+    console.log('🎨 Starting wind layer render...');
+    const { speed, width, height, bbox } = windData;
+
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      console.error('❌ Canvas is null');
+      return;
+    }
+
+    // Render với Windy.com color scale (custom rendering)
+    console.log('🖼️ Rendering with Windy.com color scale...');
+    renderWindyStyle(canvas, speed, width, height, [0, 30]);
+
+    // Chuyển canvas thành data URL
+    const dataUrl = canvas.toDataURL();
+    console.log('📊 Canvas rendered, data URL length:', dataUrl.length);
+
+    // Tính toán coordinates cho Mapbox (dựa trên bbox)
+    const [west, south, east, north] = bbox;
+    
+    // Validate bbox values
+    if (!isFinite(west) || !isFinite(south) || !isFinite(east) || !isFinite(north)) {
+      console.error('❌ Invalid bbox values (NaN/Infinity):', bbox);
+      throw new Error('Invalid bbox values from TIFF data');
+    }
+    
+    if (west >= east || south >= north) {
+      console.error('❌ Invalid bbox: west >= east or south >= north:', bbox);
+      throw new Error('Invalid bbox: coordinates must satisfy west < east and south < north');
+    }
+    
+    // Clamp to valid ranges for Mapbox
+    const clampedWest = Math.max(-180, Math.min(180, west));
+    const clampedSouth = Math.max(-85, Math.min(85, south));
+    const clampedEast = Math.max(-180, Math.min(180, east));
+    const clampedNorth = Math.max(-85, Math.min(85, north));
+    
+    const coordinates: [[number, number], [number, number], [number, number], [number, number]] = [
+      [clampedWest, clampedNorth],   // Top-left
+      [clampedEast, clampedNorth],   // Top-right
+      [clampedEast, clampedSouth],   // Bottom-right
+      [clampedWest, clampedSouth]    // Bottom-left
+    ];
+
+    console.log('📐 BBox (original):', bbox);
+    console.log('📐 BBox (clamped):', [clampedWest, clampedSouth, clampedEast, clampedNorth]);
+    console.log('📍 Coordinates:', coordinates);
+
+    // Thêm layer vào map (map có thể đã load hoặc chưa)
+    const addLayerToMap = () => {
+      // Check nếu map đã load (cả style và data)
+      if (map.loaded() && map.isStyleLoaded()) {
+        // Map đã load, thêm layer ngay
+        console.log('✅ Map already loaded, adding layer immediately');
+        addLayerToMapInternal();
+      } else {
+        // Map chưa load, đợi event 'load' hoặc 'style.load'
+        console.log('⏳ Map not loaded yet, waiting for load event...');
+        
+        // Try both 'load' and 'style.load' events
+        const onMapReady = () => {
+          console.log('✅ Map ready, adding layer now');
+          // Clear refs
+          loadHandlerRef.current = null;
+          styleLoadHandlerRef.current = null;
+          addLayerToMapInternal();
+        };
+        
+        // Listen to both events (whichever fires first)
+        if (map.isStyleLoaded()) {
+          // Style loaded, just wait for data
+          loadHandlerRef.current = onMapReady;
+          map.once('load', onMapReady);
+        } else {
+          // Style not loaded, wait for style first
+          const onStyleLoad = () => {
+            loadHandlerRef.current = onMapReady;
+            map.once('load', onMapReady);
+          };
+          styleLoadHandlerRef.current = onStyleLoad;
+          map.once('style.load', onStyleLoad);
+        }
+      }
+    };
+
+    const addLayerToMapInternal = () => {
+      // Cập nhật hoặc tạo layer
+      console.log('🗺️ Adding/updating map layer...');
+      
+      if (map.getSource('wind-layer')) {
+        console.log('🔄 Updating existing wind layer');
+        try {
+          (map.getSource('wind-layer') as mapboxgl.ImageSource).updateImage({ url: dataUrl, coordinates: coordinates });
+          console.log(`✅ Wind layer updated with Windy.com color scale`);
+        } catch (error) {
+          console.error('❌ Error updating wind layer:', error);
+        }
+      } else {
+        console.log('➕ Creating new wind layer');
+        
+        try {
+          map.addSource('wind-layer', {
+            type: 'image',
+            url: dataUrl,
+            coordinates: coordinates
+          });
+
+          map.addLayer({
+            id: 'wind-raster-layer',
+            type: 'raster',
+            source: 'wind-layer',
+            paint: {
+              'raster-opacity': opacity,
+              'raster-fade-duration': 300
+            }
+          });
+          
+          console.log('✅ Wind layer added to map');
+          console.log(`✅ Wind layer rendered with Windy.com color scale`);
+        } catch (error) {
+          console.error('❌ Error adding wind layer:', error);
+        }
+      }
+    };
+
+    addLayerToMap();
+
+    // Cleanup function
+    return () => {
+      // Remove event listeners nếu chưa fire
+      if (loadHandlerRef.current) {
+        map.off('load', loadHandlerRef.current);
+        loadHandlerRef.current = null;
+      }
+      if (styleLoadHandlerRef.current) {
+        map.off('style.load', styleLoadHandlerRef.current);
+        styleLoadHandlerRef.current = null;
+      }
+      
+      // Remove layer và source
+      try {
+        if (map.getLayer('wind-raster-layer')) {
+          map.removeLayer('wind-raster-layer');
+        }
+        if (map.getSource('wind-layer')) {
+          map.removeSource('wind-layer');
+        }
+      } catch (error) {
+        // Ignore errors during cleanup
+      }
+    };
+  }, [map, enabled, windData, opacity]); // Bỏ colorScale vì dùng cố định
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={1440} // Full resolution GFS 0.25°
+      height={681} // 170° / 0.25° + 1 (từ -85° đến 85°)
+      style={{ display: 'none' }}
+    />
+  );
+}
+

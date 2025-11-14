@@ -6,6 +6,7 @@ import { geoServerConfig, getWMSTileUrl } from '../config/geoserver.config';
 import MapControls from './MapControls';
 import ZoomControls from './ZoomControls';
 import WindLegend from './WindLegend';
+import WindLayer from './WindLayer';
 import MapInfo from './MapInfo';
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!;
@@ -24,15 +25,18 @@ export default function Map({ onMapReady }: MapProps) {
     zoom: 6,
   });
 
+  // Wind layer state
+  const [windLayerEnabled, setWindLayerEnabled] = useState(true); // Bật mặc định
+  const [windOpacity, setWindOpacity] = useState(0.7);
+  const [windForecastHour, setWindForecastHour] = useState(0);
+  const [windLoading, setWindLoading] = useState(false);
+  const [windData, setWindData] = useState<any>(null);
+
   useEffect(() => {
     if (!mapContainer.current) return;
     if (map.current) return;
 
-    const bounds: [[number, number], [number, number]] = [
-      [0.0, 0.0],
-      [150.0, 30.0],
-    ];
-
+    // Bỏ giới hạn bounds để hiển thị toàn cầu
     const newMap = new mapboxgl.Map({
       container: mapContainer.current,
       // Sử dụng style đơn giản từ Mapbox
@@ -41,7 +45,7 @@ export default function Map({ onMapReady }: MapProps) {
       zoom: 6,
       minZoom: 2,
       maxZoom: 12,
-      maxBounds: bounds,
+      // maxBounds: undefined, // Cho phép xem toàn cầu
       // Sử dụng projection 2D như Windy.com
       projection: 'mercator' as any,
       // Tắt các tính năng 3D
@@ -104,8 +108,10 @@ export default function Map({ onMapReady }: MapProps) {
     };
 
     newMap.on('load', () => {
-      // Tùy chỉnh màu sắc để giống Windy
-      newMap.setPaintProperty('background', 'background-color', '#0a1929');
+      // Tùy chỉnh màu sắc để giống Windy (check if layer exists first)
+      if (newMap.getLayer('background')) {
+        newMap.setPaintProperty('background', 'background-color', '#0a1929');
+      }
 
       // Call onMapReady callback with flyToLocation function
       onMapReady?.(flyToLocation);
@@ -128,46 +134,7 @@ export default function Map({ onMapReady }: MapProps) {
       //   },
       // });
 
-      // ===== THÊM LAYER GIÓ TỪ GEOSERVER =====
-      console.log('🔍 GeoServer config:', {
-        enabled: geoServerConfig.enabled,
-        url: geoServerConfig.url,
-        workspace: geoServerConfig.workspace,
-        windLayer: geoServerConfig.windLayer
-      });
-
-      // Chỉ thêm layer gió nếu enabled trong config
-      if (geoServerConfig.enabled) {
-        try {
-          const windLayerName = `${geoServerConfig.workspace}:${geoServerConfig.windLayer}`;
-          const tileUrl = getWMSTileUrl(windLayerName);
-
-          console.log('🌐 Wind tile URL:', tileUrl);
-
-          newMap.addSource('wind-source', {
-            type: 'raster',
-            tiles: [tileUrl],
-            tileSize: geoServerConfig.wms.tileSize,
-          });
-
-          // newMap.addLayer({
-          //   id: 'wind-layer',
-          //   type: 'raster',
-          //   source: 'wind-source',
-          //   paint: {
-          //     'raster-opacity': geoServerConfig.display.opacity,
-          //     'raster-fade-duration': geoServerConfig.display.fadeDuration,
-          //   },
-          // });
-
-          console.log('✅ Map loaded with wind layer from GeoServer');
-        } catch (error) {
-          console.error('❌ Error loading wind layer:', error);
-          console.log('💡 Tip: Set NEXT_PUBLIC_GEOSERVER_ENABLED=false to disable wind layer');
-        }
-      } else {
-        console.log('ℹ️ Wind layer disabled');
-      }
+      console.log('🗺️ Map loaded successfully');
     });
 
     // Update map state on move
@@ -179,15 +146,6 @@ export default function Map({ onMapReady }: MapProps) {
         lng: center.lng,
         zoom,
       });
-    });
-
-    newMap.on('dragend', () => {
-      const center = newMap?.getCenter?.();
-      const mapBounds = newMap?.getBounds?.();
-
-      if (center && mapBounds && !mapBounds.contains(center)) {
-        newMap.fitBounds(bounds, { padding: 0 });
-      }
     });
 
     // Cleanup
@@ -232,28 +190,47 @@ export default function Map({ onMapReady }: MapProps) {
     }
   }, []);
 
-  const handleLayerToggle = useCallback((layer: string, enabled: boolean) => {
-    console.log(`Layer ${layer} toggled:`, enabled);
-    // Implement layer toggle logic here based on your needs
+  const handleWindAnimationToggle = useCallback((enabled: boolean) => {
+    console.log('Wind animation toggled:', enabled);
+    // TODO: Implement wind animation layer
   }, []);
 
   return (
     <div className="relative w-full h-full bg-[#0a1929]">
       <div ref={mapContainer} className="w-full h-full" />
-      
-      {/* Map Controls - Search and Layers */}
-      <MapControls onLayerToggle={handleLayerToggle} />
-      
+
+      {/* Wind Layer with Plotty */}
+      <WindLayer
+        map={map.current}
+        enabled={windLayerEnabled}
+        opacity={windOpacity}
+        forecastHour={windForecastHour}
+        onLoadingChange={setWindLoading}
+        onDataLoaded={setWindData}
+      />
+
+      {/* Map Controls - Search only */}
+      <MapControls />
+
       {/* Zoom Controls - Zoom buttons and Location */}
       <ZoomControls
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
         onLocationClick={handleLocationClick}
       />
-      
-      {/* Wind Legend (if enabled) */}
-      {geoServerConfig.enabled && <WindLegend />}
-      
+
+      {/* Wind Legend with Controls (if wind layer is enabled) */}
+      {windLayerEnabled && (
+        <WindLegend
+          opacity={windOpacity}
+          forecastHour={windForecastHour}
+          isLoading={windLoading}
+          onOpacityChange={setWindOpacity}
+          onForecastHourChange={setWindForecastHour}
+          onWindAnimationToggle={handleWindAnimationToggle}
+        />
+      )}
+
       {/* Map Info - Coordinates and Zoom level */}
       <MapInfo lat={mapState.lat} lng={mapState.lng} zoom={mapState.zoom} />
     </div>

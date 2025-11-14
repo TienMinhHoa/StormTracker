@@ -1,62 +1,168 @@
 'use client';
 
 import { useState } from 'react';
+import { WINDY_COLOR_STOPS } from '../utils/windyColorScale';
 
-export default function WindLegend() {
-  const [isExpanded, setIsExpanded] = useState(true);
+interface WindLegendProps {
+  opacity: number;
+  forecastHour?: number;
+  isLoading?: boolean;
+  onOpacityChange: (opacity: number) => void;
+  onForecastHourChange?: (hour: number) => void;
+  onWindAnimationToggle?: (enabled: boolean) => void;
+}
 
-  const windScale = [
-    { speed: '0-5', color: '#3288bd', label: 'Nhẹ' },
-    { speed: '5-10', color: '#66c2a5', label: 'Vừa phải' },
-    { speed: '10-15', color: '#fee08b', label: 'Mạnh' },
-    { speed: '15-20', color: '#f46d43', label: 'Rất mạnh' },
-    { speed: '20+', color: '#d53e4f', label: 'Cực mạnh' },
-  ];
+export default function WindLegend({
+  opacity,
+  forecastHour = 0,
+  isLoading = false,
+  onOpacityChange,
+  onForecastHourChange,
+  onWindAnimationToggle,
+}: WindLegendProps) {
+  const [windAnimationEnabled, setWindAnimationEnabled] = useState(false);
+
+  // Tạo gradient string từ color stops
+  const gradientStops = WINDY_COLOR_STOPS.map(([stop, color]) => `${color} ${stop * 100}%`).join(', ');
+  const gradient = `linear-gradient(to right, ${gradientStops})`;
+
+  // Các điểm đánh dấu trên thanh (0-30 m/s)
+  const markers = [0, 3, 5, 10, 15, 20, 30];
+  
+  // Tính vị trí % cho mỗi marker (0-30 m/s)
+  const getMarkerPosition = (value: number) => (value / 30) * 100;
 
   return (
-    <div className="absolute bottom-20 left-4 bg-[#1c2127]/80 backdrop-blur-sm rounded-lg shadow-lg overflow-hidden">
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full px-4 py-2 text-left flex items-center justify-between hover:bg-[#1c2127] transition-colors"
-      >
-        <span className="text-white font-semibold text-sm">🌬️ Wind Speed (m/s)</span>
-        <svg
-          className={`w-4 h-4 text-gray-400 transition-transform ${
-            isExpanded ? 'rotate-180' : ''
-          }`}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M19 9l-7 7-7-7"
-          />
-        </svg>
-      </button>
+    <div className="absolute bottom-4 right-20 z-10">
+      <div className="flex flex-col gap-2">
+        {/* Wind Animation Toggle - ở trên cùng */}
+        {onWindAnimationToggle && (
+          <div className="flex justify-end">
+            <label className="flex items-center gap-2 px-2 py-1 rounded-md hover:bg-white/10 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={windAnimationEnabled}
+                onChange={(e) => {
+                  const newValue = e.target.checked;
+                  setWindAnimationEnabled(newValue);
+                  onWindAnimationToggle(newValue);
+                }}
+                className="rounded bg-transparent border-white/50 text-[#137fec] focus:ring-[#137fec] focus:ring-offset-0 w-3 h-3"
+              />
+              <span className="text-xs text-white">Wind Animation</span>
+            </label>
+          </div>
+        )}
 
-      {isExpanded && (
-        <div className="px-4 pb-3 pt-1">
-          <div className="space-y-2">
-            {windScale.map((item, index) => (
-              <div key={index} className="flex items-center gap-3">
-                <div
-                  className="w-8 h-4 rounded shadow-sm"
-                  style={{ backgroundColor: item.color }}
+        {/* 3 thanh ngang thẳng hàng */}
+        <div className="flex flex-col gap-2">
+          {/* Forecast Hour - thanh trên cùng */}
+          {onForecastHourChange && (
+            <div className="flex items-center gap-2">
+              <span className="text-white text-[10px] font-medium flex-shrink-0 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}>
+                Forecast: +{forecastHour}h
+              </span>
+              <div className="relative flex-1 flex items-center gap-2" style={{ width: '300px' }}>
+                {isLoading && (
+                  <div className="w-2 h-2 border border-white/30 border-t-white rounded-full animate-spin flex-shrink-0"></div>
+                )}
+                <input
+                  type="range"
+                  min="0"
+                  max="168"
+                  step="6"
+                  value={forecastHour}
+                  onChange={(e) => onForecastHourChange(parseInt(e.target.value))}
+                  className="flex-1 h-1.5 bg-gray-700/50 rounded-lg appearance-none cursor-pointer"
+                  disabled={isLoading}
                 />
-                <div className="flex-1">
-                  <div className="text-gray-300 text-xs font-medium">
-                    {item.speed} m/s
-                  </div>
-                  <div className="text-gray-400 text-xs">{item.label}</div>
-                </div>
               </div>
-            ))}
+            </div>
+          )}
+
+          {/* Opacity - thanh giữa */}
+          <div className="flex items-center gap-2">
+            <span className="text-white text-[10px] font-medium flex-shrink-0 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}>
+              Opacity: {Math.round(opacity * 100)}%
+            </span>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.1"
+              value={opacity}
+              onInput={(e) => onOpacityChange(parseFloat((e.target as HTMLInputElement).value))}
+              onChange={(e) => onOpacityChange(parseFloat(e.target.value))}
+              className="flex-1 h-1.5 bg-gray-700/50 rounded-lg appearance-none cursor-pointer"
+              style={{ width: '300px' }}
+            />
+          </div>
+
+          {/* Wind Speed Legend - thanh dưới cùng */}
+          <div className="relative" style={{ width: '300px' }}>
+            {/* Gradient bar với rounded ends */}
+            <div
+              className="h-5 rounded-full shadow-lg"
+              style={{
+                background: gradient,
+              }}
+            />
+
+            {/* Markers và labels nằm trong thanh */}
+            <div className="absolute inset-0 flex items-center px-2">
+              {/* Unit label "m/s" ở đầu thanh bên trái */}
+              <span 
+                className="absolute text-white text-[10px] font-semibold whitespace-nowrap drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
+                style={{ 
+                  textShadow: '0 1px 2px rgba(0,0,0,0.8)',
+                  left: '8px'
+                }}
+              >
+                m/s
+              </span>
+
+              {/* Các số markers */}
+              {markers.map((value) => {
+                // Chỉ set padding cho số 0, số 30 để nguyên ở cuối thanh
+                const leftPadding = 12; // Padding bên trái cho số 0
+                const rightEnd = 96; // Vị trí cuối thanh cho số 30 (để không tràn ra ngoài)
+                
+                let position: number;
+                if (value === 0) {
+                  // Số 0: dùng padding bên trái
+                  position = leftPadding;
+                } else if (value === 30) {
+                  // Số 30: ở cuối thanh
+                  position = rightEnd;
+                } else {
+                  // Các số khác: phân bố đều giữa vị trí 0 và 30
+                  const startPos = leftPadding;
+                  const endPos = rightEnd;
+                  const range = endPos - startPos;
+                  // Tính vị trí dựa trên tỷ lệ (value / 30)
+                  position = startPos + (value / 30) * range;
+                }
+                
+                return (
+                  <div
+                    key={value}
+                    className="absolute flex items-center justify-center"
+                    style={{ left: `${position}%`, transform: 'translateX(-50%)' }}
+                  >
+                    {/* Label nằm trong thanh */}
+                    <span 
+                      className="text-white text-[10px] font-semibold whitespace-nowrap drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
+                      style={{ textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}
+                    >
+                      {value}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
