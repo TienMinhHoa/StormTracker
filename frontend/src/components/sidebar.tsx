@@ -1,6 +1,6 @@
 "use client"
 
-import { Cloud, MessageSquare, AlertTriangle, Settings, HelpCircle, LogOut } from "lucide-react"
+import { Cloud, MessageSquare, AlertTriangle, Settings, HelpCircle, LogOut, MapPinPlus } from "lucide-react"
 import NewsCard from "./news-card"
 
 const categories = [
@@ -140,6 +140,10 @@ export default function Sidebar({ activeTab, onTabChange, selectedCategory, onCa
         <button className="w-full flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-secondary transition-colors text-foreground">
           <LogOut className="w-5 h-5" />
           <span className="text-sm">Log Out</span>
+        </button>
+        <button className="w-full flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-secondary transition-colors text-foreground">
+          <MapPinPlus className="w-5 h-5" />
+          <span className="text-sm">Send Help Request</span>
         </button>
       </div>
     </div>

@@ -4,7 +4,16 @@ import { Search, MapPin } from "lucide-react"
 import { useState, useMemo, useEffect } from "react"
 import dynamic from "next/dynamic"
 import type L from "leaflet"
+import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
+import markerIcon from "leaflet/dist/images/marker-icon.png";
+import markerShadow from "leaflet/dist/images/marker-shadow.png";
 
+const RedLayer = dynamic(() => import("./layers/red-layer"), { ssr: false })
+const BlueLayer = dynamic(() => import("./layers/blue-layer"), { ssr: false })
+const LayerControlPanel = dynamic(() => import("./layer-control-panels"), { ssr: false })
+import { mockRescueRequests } from "./mock-data";
+const HeatmapLayer = dynamic(() => import("./layers/heatmap-layer"), { ssr: false });
+import { computeHeatmapFromRescueData, HeatPoint } from "./heatmap-utils";
 // Dynamically import map components to avoid SSR issues
 const MapContainer = dynamic(() => import("react-leaflet").then((mod) => mod.MapContainer), {
   ssr: false,
@@ -30,6 +39,7 @@ const Popup = dynamic(() => import("react-leaflet").then((mod) => mod.Popup), {
 const ZoomControl = dynamic(() => import("react-leaflet").then((mod) => mod.ZoomControl), {
   ssr: false,
 })
+
 
 // Create custom storm icons
 const createStormIcon = (level: string) => {
@@ -76,10 +86,66 @@ const createStormIcon = (level: string) => {
   })
 }
 
+const getSeverityIcon = (severity: number) => {
+ 
+  if (typeof window === "undefined") return undefined;
+
+  const L = require("leaflet");
+  const color = 'rgba(249, 254, 251, 1)'
+  
+  return L.divIcon({
+    className: 'custom-marker',
+    html: `
+      <div style="
+        background-color: ${color};
+        width: 24px;
+        height: 24px;
+        border-radius: 50% 50% 50% 0;
+        transform: rotate(-45deg);
+        border: 2px solid white;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+      ">
+        <div style="
+          transform: rotate(45deg);
+          text-align: center;
+          line-height: 20px;
+          color: white;
+          font-weight: bold;
+          font-size: 14px;
+        ">!</div>
+      </div>
+    `,
+    iconSize: [24, 24],
+    iconAnchor: [12, 24],
+    popupAnchor: [0, -24],
+  });
+};
 export default function MainContent() {
   const [mapCenter, setMapCenter] = useState<[number, number]>([16.0544, 108.2022]) // Vietnam center
   const [mapZoom, setMapZoom] = useState(6)
   const [stormIcons, setStormIcons] = useState<Map<number, L.DivIcon>>(new Map())
+  const [openLayerPanel, setOpenLayerPanel] = useState(false)
+
+  const [layers, setLayers] = useState([
+  { key: "red", label: "Red Zone", visible: false },
+  { key: "blue", label: "Blue Zone", visible: false },
+  { key: "heatmap", label: "Heatmap", visible: false },
+])
+  const [heatmapData, setHeatmapData] = useState<HeatPoint[]>([]);
+
+  const toggleLayer = (key: string) => {
+  setLayers(prev =>
+    prev.map(l =>
+      l.key === key ? { ...l, visible: !l.visible } : l
+    )
+  )
+}
+
+  // Compute heatmap data from mock rescue requests
+   useEffect(() => {
+    const processed = computeHeatmapFromRescueData(mockRescueRequests);
+    setHeatmapData(processed);
+  }, []);
 
   // Sample storm locations
   const storms = useMemo(
@@ -118,7 +184,8 @@ export default function MainContent() {
         </div>
 
         {/* Layers Button */}
-        <button className="px-4 py-2 bg-accent text-accent-foreground rounded-lg font-medium hover:opacity-90 transition-opacity flex items-center gap-2">
+        <button  onClick={() => setOpenLayerPanel(v => !v)}
+        className="px-4 py-2 bg-accent text-accent-foreground rounded-lg font-medium hover:opacity-90 transition-opacity flex items-center gap-2">
           <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
             <path d="M10 12.586L5.707 8.293a1 1 0 10-1.414 1.414l6 6a1 1 0 001.414 0l6-6a1 1 0 10-1.414-1.414L10 12.586z" />
           </svg>
@@ -126,6 +193,7 @@ export default function MainContent() {
         </button>
       </div>
 
+      
       {/* Map Container */}
       <div className="flex-1 relative overflow-hidden mx-6 mb-6 rounded-lg border border-border">
         <MapContainer
@@ -140,7 +208,21 @@ export default function MainContent() {
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             maxZoom={19}
           />
-          
+           {/* Hiển thị các marker từ mockRescueRequests */}
+          {mockRescueRequests.map((point, idx) => (
+            <Marker
+              key={idx}
+              position={[point.lat, point.lng]}
+              icon ={getSeverityIcon(point.severity)}
+            >
+              <Popup>
+                <div>
+                  <p style={{ color: "black" }}><strong>Severity:</strong> {point.severity}</p>
+                  <p style = {{color: "black"}}><strong>Timestamp:</strong> {new Date(point.timestamp * 1000).toLocaleString()}</p>
+                </div>
+              </Popup>
+            </Marker>
+          ))}
           <ZoomControl position="bottomright" />
 
           {/* Storm markers */}
@@ -160,7 +242,15 @@ export default function MainContent() {
               </Marker>
             )
           })}
+          {/* Conditional Layers */}
+          {layers.find((l) => l.key === "red")?.visible && <RedLayer />}
+          {layers.find((l) => l.key === "blue")?.visible && <BlueLayer />}
+          {layers.find((l) => l.key === "heatmap")?.visible && <HeatmapLayer data={heatmapData} />}
         </MapContainer>
+        {/* Layer Control Panel */}
+       {openLayerPanel && (
+  <LayerControlPanel layers={layers} onToggle={toggleLayer} />
+)}
       </div>
     </main>
   )
