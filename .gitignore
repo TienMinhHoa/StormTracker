@@ -15,10 +15,15 @@ node_modules/
 
 # next.js
 /.next/
+.next
+*.next
+.next/
 /out/
 
 # production
 /build
+frontend/.next
+
 
 # misc
 .DS_Store

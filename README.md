@@ -10,21 +10,24 @@
 
 - 🗺️ Bản đồ tương tác với Mapbox GL JS
 - 🎨 Giao diện tối màu giống Windy.com
-- 🌬️ Hiển thị layer gió từ GeoServer (TIFF)
+- 🌬️ Hiển thị layer gió từ TIFF data (GFS model)
+- 🎛️ Controls: Opacity, Forecast Hour, Wind Animation
+- 🏗️ Feature-Based Architecture với TypeScript
 - ⚡ Next.js 16 với App Router
-- 🎯 TypeScript support
+- 📁 Clean project structure với organized components
 
 ## Cài đặt
 
 ### 1. Clone và cài đặt dependencies
 
 ```bash
+cd frontend
 npm install
 ```
 
 ### 2. Cấu hình biến môi trường
 
-Tạo file `.env.local` với nội dung:
+Tạo file `frontend/.env.local` với nội dung:
 
 ```bash
 # Mapbox Access Token (bắt buộc)
@@ -40,35 +43,50 @@ NEXT_PUBLIC_GEOSERVER_WIND_LAYER=wind_data
 ### 3. Chạy development server
 
 ```bash
+cd frontend
 npm run dev
 ```
 
 Mở [http://localhost:3000](http://localhost:3000) trong browser.
 
-## Cấu hình GeoServer
+## Dữ liệu gió
 
+Project đã bao gồm file TIFF mẫu:
+- `frontend/public/U_20251115_100.tif` - Component gió U (đông-tây)
+- `frontend/public/V_20251115_100.tif` - Component gió V (nam-bắc)
+
+### GeoServer (Tùy chọn)
+
+Nếu muốn sử dụng GeoServer thay vì TIFF files trực tiếp:
 Xem hướng dẫn chi tiết trong file [GEOSERVER_SETUP.md](./GEOSERVER_SETUP.md).
 
-### Tóm tắt:
+### Tóm tắt setup GeoServer:
 1. Cài đặt GeoServer
 2. Upload file TIFF chứa dữ liệu gió
 3. Publish layer trong GeoServer
-4. Cập nhật URL và tên layer trong `.env.local`
+4. Cập nhật URL và tên layer trong `frontend/.env.local`
 
 ## Cấu trúc dự án
 
 ```
 windy-clone/
-├── app/
-│   ├── components/
-│   │   └── Map.tsx           # Component bản đồ chính
-│   ├── config/
-│   │   └── geoserver.config.ts  # Cấu hình GeoServer
-│   ├── page.tsx              # Trang chủ
-│   └── globals.css           # Global styles
-├── public/                   # Static files
-├── .env.local               # Biến môi trường (tạo mới)
-└── package.json
+├── frontend/                 # Next.js App Directory
+│   ├── app/                  # Next.js App Router
+│   │   ├── api/              # API Routes
+│   │   ├── components/       # Feature-based Components
+│   │   │   ├── map/          # Map Feature
+│   │   │   │   ├── services/ # Map-specific services
+│   │   │   │   └── utils/    # Map-specific utilities
+│   │   │   ├── news/         # News Feature
+│   │   │   ├── rescue/       # Rescue Feature
+│   │   │   └── ...
+│   │   ├── config/           # Configuration files
+│   │   ├── page.tsx          # Home page
+│   │   └── globals.css       # Global styles
+│   ├── public/               # Static assets & TIFF files
+│   ├── package.json          # Dependencies
+│   └── next.config.ts        # Next.js configuration
+└── README.md
 ```
 
 ## Công nghệ sử dụng

@@ -11,8 +11,13 @@ components/
 │   ├── MapControls.tsx            # Search & layer controls
 │   ├── MapInfo.tsx                # Hiển thị tọa độ & zoom level
 │   ├── ZoomControls.tsx           # Zoom in/out & location buttons
-│   ├── WindLegend.tsx             # Wind speed legend
-│   ├── LayerControls.tsx          # Layer toggle controls
+│   ├── WindLegend.tsx             # Wind speed legend with controls
+│   ├── WindLayer.tsx              # Wind data layer rendering
+│   ├── services/                  # Feature-specific services
+│   │   ├── gfsService.ts          # GFS wind data fetching
+│   │   └── tiffService.ts         # TIFF file processing
+│   ├── utils/                     # Feature-specific utilities
+│   │   └── windyColorScale.ts     # Wind visualization colors
 │   └── index.ts                   # Exports
 │
 ├── news/                   # 📰 News Feature
@@ -83,9 +88,14 @@ import {
 Chứa toàn bộ logic liên quan đến bản đồ:
 
 - Mapbox integration
-- Controls (zoom, search, layers)
+- Controls (zoom, location)
 - Map UI elements (legend, info)
-- Wind layer visualization
+- Wind layer visualization với real TIFF data
+- Feature-specific services & utilities
+
+**Sub-structure:**
+- `services/`: GFS data fetching, TIFF processing
+- `utils/`: Wind color scales, visualization helpers
 
 ### 📰 **News Feature**
 
@@ -143,15 +153,18 @@ Layout component tổng hợp:
 ### ✅ DO:
 
 - Giữ tất cả files liên quan trong cùng feature folder
+- Tạo sub-folders `services/` và `utils/` trong feature khi cần
 - Export types cùng với components
 - Sử dụng barrel exports (index.ts)
 - Đặt tên file rõ ràng (`newsData.ts`, `warningUtils.ts`)
+- Services/utils chỉ dùng trong 1 feature → để trong feature đó
 
 ### ❌ DON'T:
 
-- Không tạo shared folder trừ khi thật sự cần
-- Không import cross-feature trừ khi cần thiết
-- Không duplicate code - tạo utils trong feature folder
+- Không tạo shared folder trừ khi dùng bởi nhiều features
+- Không import cross-feature trừ khi thật sự cần thiết
+- Không duplicate code - tạo utils/services trong feature folder
+- Không để services/utils ở root level nếu chỉ dùng 1 feature
 
 ## 🚀 Next Steps
 

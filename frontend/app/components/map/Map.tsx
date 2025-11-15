@@ -6,6 +6,7 @@ import { geoServerConfig, getWMSTileUrl } from '../../config/geoserver.config';
 import MapControls from './MapControls';
 import ZoomControls from './ZoomControls';
 import WindLegend from './WindLegend';
+import WindLayer from './WindLayer';
 import MapInfo from './MapInfo';
 import { RescueRequest } from '../rescue';
 
@@ -31,14 +32,15 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
     zoom: 6,
   });
 
+  // Wind layer state - always enabled
+  const [windOpacity, setWindOpacity] = useState(0.7);
+  const [windForecastHour, setWindForecastHour] = useState(0);
+  const [windLoading, setWindLoading] = useState(false);
+  const [windData, setWindData] = useState<any>(null);
+
   useEffect(() => {
     if (!mapContainer.current) return;
     if (map.current) return;
-
-    const bounds: [[number, number], [number, number]] = [
-      [0.0, 0.0],
-      [150.0, 30.0],
-    ];
 
     const newMap = new mapboxgl.Map({
       container: mapContainer.current,
@@ -48,7 +50,8 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
       zoom: 6,
       minZoom: 2,
       maxZoom: 12,
-      maxBounds: bounds,
+      // Không giới hạn khu vực - cho phép xem toàn cầu
+      // maxBounds: undefined,
       // Sử dụng projection 2D như Windy.com
       projection: 'mercator' as any,
       // Tắt các tính năng 3D
@@ -78,7 +81,6 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
 
       // Call onMapReady callback with flyToLocation function
       onMapReady?.(flyToLocation);
-      
 
       // newMap.addLayer({
       //   id: 'country-boundaries',
@@ -92,46 +94,7 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
       //   },
       // });
 
-      // ===== THÊM LAYER GIÓ TỪ GEOSERVER =====
-      console.log('🔍 GeoServer config:', {
-        enabled: geoServerConfig.enabled,
-        url: geoServerConfig.url,
-        workspace: geoServerConfig.workspace,
-        windLayer: geoServerConfig.windLayer
-      });
-
-      // Chỉ thêm layer gió nếu enabled trong config
-      if (geoServerConfig.enabled) {
-        try {
-          const windLayerName = `${geoServerConfig.workspace}:${geoServerConfig.windLayer}`;
-          const tileUrl = getWMSTileUrl(windLayerName);
-
-          console.log('🌐 Wind tile URL:', tileUrl);
-
-          newMap.addSource('wind-source', {
-            type: 'raster',
-            tiles: [tileUrl],
-            tileSize: geoServerConfig.wms.tileSize,
-          });
-
-          // newMap.addLayer({
-          //   id: 'wind-layer',
-          //   type: 'raster',
-          //   source: 'wind-source',
-          //   paint: {
-          //     'raster-opacity': geoServerConfig.display.opacity,
-          //     'raster-fade-duration': geoServerConfig.display.fadeDuration,
-          //   },
-          // });
-
-          console.log('✅ Map loaded with wind layer from GeoServer');
-        } catch (error) {
-          console.error('❌ Error loading wind layer:', error);
-          console.log('💡 Tip: Set NEXT_PUBLIC_GEOSERVER_ENABLED=false to disable wind layer');
-        }
-      } else {
-        console.log('ℹ️ Wind layer disabled');
-      }
+      console.log('🗺️ Map loaded successfully');
     });
 
     // Update map state on move
@@ -145,14 +108,7 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
       });
     });
 
-    newMap.on('dragend', () => {
-      const center = newMap?.getCenter?.();
-      const mapBounds = newMap?.getBounds?.();
-
-      if (center && mapBounds && !mapBounds.contains(center)) {
-        newMap.fitBounds(bounds, { padding: 0 });
-      }
-    });
+    // Không cần enforce bounds nữa - cho phép xem toàn cầu
 
     // Cleanup
     return () => {
@@ -372,28 +328,45 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
     }
   }, []);
 
-  const handleLayerToggle = useCallback((layer: string, enabled: boolean) => {
-    console.log(`Layer ${layer} toggled:`, enabled);
-    // Implement layer toggle logic here based on your needs
+  const handleWindAnimationToggle = useCallback((enabled: boolean) => {
+    console.log('Wind animation toggled:', enabled);
+    // TODO: Implement wind animation layer
   }, []);
 
   return (
     <div className="relative w-full h-full bg-[#0a1929]">
       <div ref={mapContainer} className="w-full h-full" />
-      
-      {/* Map Controls - Search and Layers */}
-      <MapControls onLayerToggle={handleLayerToggle} />
-      
+
+      {/* Wind Layer with real data - always enabled */}
+      <WindLayer
+        map={map.current}
+        enabled={true}
+        opacity={windOpacity}
+        forecastHour={windForecastHour}
+        onLoadingChange={setWindLoading}
+        onDataLoaded={setWindData}
+      />
+
+      {/* Map Controls - Removed */}
+      <MapControls />
+
       {/* Zoom Controls - Zoom buttons and Location */}
       <ZoomControls
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
         onLocationClick={handleLocationClick}
       />
-      
-      {/* Wind Legend (if enabled) */}
-      {geoServerConfig.enabled && <WindLegend />}
-      
+
+      {/* Wind Legend with Controls */}
+      <WindLegend
+        opacity={windOpacity}
+        forecastHour={windForecastHour}
+        isLoading={windLoading}
+        onOpacityChange={setWindOpacity}
+        onForecastHourChange={setWindForecastHour}
+        onWindAnimationToggle={handleWindAnimationToggle}
+      />
+
       {/* Map Info - Coordinates and Zoom level */}
       <MapInfo lat={mapState.lat} lng={mapState.lng} zoom={mapState.zoom} />
     </div>
