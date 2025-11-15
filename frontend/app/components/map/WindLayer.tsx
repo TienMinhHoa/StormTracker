@@ -14,6 +14,55 @@ interface WindLayerProps {
   onDataLoaded?: (data: WindData) => void;
 }
 
+// Function để thêm boundaries overlay lên trên wind layer
+function addBoundariesOverlay(map: mapboxgl.Map) {
+  try {
+    // Kiểm tra nếu đã có boundaries rồi thì bỏ qua
+    if (map.getLayer('wind-country-boundaries')) {
+      console.log('🔄 Boundaries already exist, skipping...');
+      return;
+    }
+
+    // Thêm source nếu chưa có
+    if (!map.getSource('wind-admin-boundaries')) {
+      map.addSource('wind-admin-boundaries', {
+        type: 'vector',
+        url: 'mapbox://mapbox.country-boundaries-v1',
+      });
+    }
+
+    // Thêm ranh giới quốc gia - chỉ lines, không fill
+    map.addLayer({
+      id: 'wind-country-boundaries',
+      type: 'line',
+      source: 'wind-admin-boundaries',
+      'source-layer': 'country_boundaries',
+      paint: {
+        'line-color': '#000000', // Đen
+        'line-width': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          2, 0.3,    // Zoom nhỏ: rất mỏng
+          6, 0.6,    // Zoom trung bình: mỏng
+          10, 0.9,   // Zoom lớn: vừa
+          12, 1.2    // Zoom max: dày vừa
+        ],
+        'line-opacity': 0.9, // Rõ hơn trên màu gió
+      },
+      minzoom: 2,
+    }); // Không chỉ định beforeId - sẽ ở trên cùng
+
+    // Source chỉ có country_boundaries, không có maritime_boundaries
+    // Boundaries chỉ cần country boundaries là đủ
+
+    console.log('✅ Boundaries overlay added on top of wind layer');
+
+  } catch (error) {
+    console.error('❌ Error adding boundaries overlay:', error);
+  }
+}
+
 export default function WindLayer({
   map,
   enabled = true,
@@ -190,6 +239,10 @@ export default function WindLayer({
 
           console.log('✅ Wind layer added to map');
           console.log(`✅ Wind layer rendered with Windy.com color scale`);
+
+          // Thêm boundaries overlay lên trên wind layer
+          addBoundariesOverlay(map);
+
           setLayerReady(true);
         } catch (error) {
           console.error('❌ Error adding wind layer:', error);

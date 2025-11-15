@@ -32,8 +32,8 @@ export default function WindLegend({
   return (
     <div className="absolute bottom-4 right-20 z-10">
       <div className="flex flex-col gap-2">
-        {/* Wind Animation Toggle */}
-        <div className="flex justify-end">
+        {/* Layer Toggles */}
+        <div className="flex justify-end gap-3">
           {onWindAnimationToggle && (
             <label className="flex items-center gap-2 px-2 py-1 rounded-md hover:bg-white/10 cursor-pointer">
               <input
@@ -49,6 +49,7 @@ export default function WindLegend({
               <span className="text-xs text-white">Wind Animation</span>
             </label>
           )}
+
         </div>
 
         {/* 3 thanh controls */}
