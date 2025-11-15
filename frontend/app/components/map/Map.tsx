@@ -7,6 +7,7 @@ import MapControls from './MapControls';
 import ZoomControls from './ZoomControls';
 import WindLegend from './WindLegend';
 import WindLayer from './WindLayer';
+import StormTrack from './StormTrack';
 import MapInfo from './MapInfo';
 import { RescueRequest } from '../rescue';
 
@@ -37,6 +38,9 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
   const [windForecastHour, setWindForecastHour] = useState(0);
   const [windLoading, setWindLoading] = useState(false);
   const [windData, setWindData] = useState<any>(null);
+
+  // Storm track always enabled
+  const stormTrackEnabled = true;
 
   useEffect(() => {
     if (!mapContainer.current) return;
@@ -82,17 +86,7 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
       // Call onMapReady callback with flyToLocation function
       onMapReady?.(flyToLocation);
 
-      // newMap.addLayer({
-      //   id: 'country-boundaries',
-      //   type: 'line',
-      //   source: 'admin-source',
-      //   'source-layer': 'country_boundaries',
-      //   paint: {
-      //     'line-color': '#5a6f7f',
-      //     'line-width': 1,
-      //     'line-opacity': 0.5,
-      //   },
-      // });
+      // Boundaries sẽ được thêm trong WindLayer component (overlay lên trên wind layer)
 
       console.log('🗺️ Map loaded successfully');
     });
@@ -345,6 +339,12 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
         forecastHour={windForecastHour}
         onLoadingChange={setWindLoading}
         onDataLoaded={setWindData}
+      />
+
+      {/* Storm Track Layer */}
+      <StormTrack
+        map={map.current}
+        enabled={stormTrackEnabled}
       />
 
       {/* Map Controls - Removed */}
