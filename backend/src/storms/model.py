@@ -1,7 +1,6 @@
 from typing import Optional, List
 from datetime import datetime
-from datetime import datetime
-from src.models import Storm as StormDB
+from src.models import Storm as StormDB, StormTrack as StormTrackDB
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -88,5 +87,108 @@ class StormTables:
         await session.delete(storm)
         await session.flush()
         return True
+
+
+class StormTrackTables:
+    async def create_storm_track(
+        self,
+        session: AsyncSession,
+        storm_id: str,
+        timestamp: str,
+        lat: float,
+        lon: float,
+        category: Optional[int] = None,
+        wind_speed: Optional[float] = None
+    ) -> StormTrackDB:
+        timestamp_obj = datetime.strptime(timestamp, "%d-%m-%Y %H:%M") if timestamp else None
+        
+        new_track = StormTrackDB(
+            storm_id=storm_id,
+            timestamp=timestamp_obj,
+            lat=lat,
+            lon=lon,
+            category=category,
+            wind_speed=wind_speed
+        )
+        session.add(new_track)
+        await session.flush()
+        await session.refresh(new_track)
+        return new_track
+    
+    async def get_track_by_id(
+        self,
+        session: AsyncSession,
+        track_id: int
+    ) -> Optional[StormTrackDB]:
+        return await session.get(StormTrackDB, track_id)
+    
+    async def get_tracks_by_storm(
+        self,
+        session: AsyncSession,
+        storm_id: str,
+        skip: int = 0,
+        limit: int = 1000
+    ) -> List[StormTrackDB]:
+        query = select(StormTrackDB).where(
+            StormTrackDB.storm_id == storm_id
+        ).order_by(StormTrackDB.timestamp).offset(skip).limit(limit)
+        result = await session.execute(query)
+        return result.scalars().all()
+    
+    async def get_all_tracks(
+        self,
+        session: AsyncSession,
+        skip: int = 0,
+        limit: int = 1000
+    ) -> List[StormTrackDB]:
+        query = select(StormTrackDB).order_by(
+            StormTrackDB.storm_id, StormTrackDB.timestamp
+        ).offset(skip).limit(limit)
+        result = await session.execute(query)
+        return result.scalars().all()
+    
+    async def update_track(
+        self,
+        session: AsyncSession,
+        track_id: int,
+        timestamp: Optional[str] = None,
+        lat: Optional[float] = None,
+        lon: Optional[float] = None,
+        category: Optional[int] = None,
+        wind_speed: Optional[float] = None
+    ) -> Optional[StormTrackDB]:
+        track = await self.get_track_by_id(session, track_id)
+        if not track:
+            return None
+        
+        if timestamp is not None:
+            track.timestamp = datetime.strptime(timestamp, "%d-%m-%Y %H:%M")
+        if lat is not None:
+            track.lat = lat
+        if lon is not None:
+            track.lon = lon
+        if category is not None:
+            track.category = category
+        if wind_speed is not None:
+            track.wind_speed = wind_speed
+        
+        await session.flush()
+        await session.refresh(track)
+        return track
+    
+    async def delete_track(
+        self,
+        session: AsyncSession,
+        track_id: int
+    ) -> bool:
+        track = await self.get_track_by_id(session, track_id)
+        if not track:
+            return False
+        
+        await session.delete(track)
+        await session.flush()
+        return True
+
     
 storms = StormTables()
+storm_tracks = StormTrackTables()
