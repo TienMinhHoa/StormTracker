@@ -3,13 +3,14 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import { geoServerConfig, getWMSTileUrl } from '../../config/geoserver.config';
-import MapControls from './MapControls';
+import TimeControls from './TimeControls';
 import ZoomControls from './ZoomControls';
 import WindLegend from './WindLegend';
 import WindLayer from './WindLayer';
-import StormTrack from './StormTrack';
+import StormTrackLayer from './StormTrackLayer';
 import MapInfo from './MapInfo';
 import { RescueRequest } from '../rescue';
+import { AVAILABLE_TIMESTAMPS } from './services/tiffService';
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!;
 
@@ -17,11 +18,12 @@ type MapProps = {
   onMapReady?: (flyToLocation: (lng: number, lat: number, zoom?: number) => void) => void;
   rescueRequests?: RescueRequest[];
   newsItems?: Array<{ id: number; coordinates: [number, number]; title: string; image: string; category: string }>;
-  activeTab?: 'news' | 'rescue' | 'chatbot';
+  activeTab?: 'news' | 'rescue' | 'damage' | 'chatbot';
   onNewsClick?: (news: any) => void;
+  selectedStorm?: any;
 };
 
-export default function Map({ onMapReady, rescueRequests = [], newsItems = [], activeTab = 'news', onNewsClick }: MapProps) {
+export default function Map({ onMapReady, rescueRequests = [], newsItems = [], activeTab = 'news', onNewsClick, selectedStorm }: MapProps) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const marker = useRef<mapboxgl.Marker | null>(null);
@@ -34,13 +36,21 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
   });
 
   // Wind layer state - always enabled
-  const [windOpacity, setWindOpacity] = useState(0.7);
-  const [windForecastHour, setWindForecastHour] = useState(0);
+  const [windOpacity, setWindOpacity] = useState(1.0);
+  const [windTimestamp, setWindTimestamp] = useState<string>('');
   const [windLoading, setWindLoading] = useState(false);
   const [windData, setWindData] = useState<any>(null);
+  const [mapReady, setMapReady] = useState(false);
+
+  // Set default timestamp on mount
+  useEffect(() => {
+    if (!windTimestamp && AVAILABLE_TIMESTAMPS.length > 0) {
+      setWindTimestamp(AVAILABLE_TIMESTAMPS[0].timestamp);
+    }
+  }, []);
 
   // Storm track always enabled
-  const stormTrackEnabled = true;
+  const stormTrackEnabled = false; // Temporarily disabled due to timing issues
 
   useEffect(() => {
     if (!mapContainer.current) return;
@@ -89,6 +99,9 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
       // Boundaries sẽ được thêm trong WindLayer component (overlay lên trên wind layer)
 
       console.log('🗺️ Map loaded successfully');
+      
+      // Trigger re-render for components that depend on map
+      setMapReady(true);
     });
 
     // Update map state on move
@@ -336,35 +349,44 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
         map={map.current}
         enabled={true}
         opacity={windOpacity}
-        forecastHour={windForecastHour}
+        timestamp={windTimestamp}
         onLoadingChange={setWindLoading}
         onDataLoaded={setWindData}
       />
 
-      {/* Storm Track Layer */}
-      <StormTrack
-        map={map.current}
-        enabled={stormTrackEnabled}
-      />
+      {/* Storm Track Layer (new visualization with pulse animation) */}
+      {mapReady && (
+        <StormTrackLayer
+          map={map.current}
+          enabled={true}
+        />
+      )}
 
-      {/* Map Controls - Removed */}
-      <MapControls />
+      {/* Docked Controls Row */}
+      <div className="absolute bottom-4 left-0 right-24 z-10 px-4 pointer-events-none">
+        <div className="flex w-full items-end gap-6">
+          <TimeControls
+            currentTimestamp={windTimestamp}
+            onTimestampChange={setWindTimestamp}
+            className="pointer-events-auto flex-1 ml-80"
+          />
+
+          <WindLegend
+            opacity={windOpacity}
+            timestamp={windTimestamp}
+            isLoading={windLoading}
+            onOpacityChange={setWindOpacity}
+            onWindAnimationToggle={handleWindAnimationToggle}
+            className="pointer-events-auto"
+          />
+        </div>
+      </div>
 
       {/* Zoom Controls - Zoom buttons and Location */}
       <ZoomControls
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
         onLocationClick={handleLocationClick}
-      />
-
-      {/* Wind Legend with Controls */}
-      <WindLegend
-        opacity={windOpacity}
-        forecastHour={windForecastHour}
-        isLoading={windLoading}
-        onOpacityChange={setWindOpacity}
-        onForecastHourChange={setWindForecastHour}
-        onWindAnimationToggle={handleWindAnimationToggle}
       />
 
       {/* Map Info - Coordinates and Zoom level */}

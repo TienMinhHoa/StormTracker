@@ -1,47 +1,294 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
-
-interface StormPoint {
-  lat: number;
-  lng: number;
-  timestamp: number;
-  windSpeed: number;
-  pressure?: number;
-}
+import { mockStormTracks, StormTrack as StormTrackData, StormTrackPoint } from '../../data/stormTracks';
 
 interface StormTrackProps {
   map: mapboxgl.Map | null;
   enabled?: boolean;
-  stormData?: {
-    name: string;
-    points: StormPoint[];
-    coneRadius?: number; // km
-  };
+  selectedStormId?: string;
 }
 
 export default function StormTrack({
   map,
-  enabled = false,
-  stormData = {
-    name: 'Sample Storm',
-    points: [
-      { lat: 16.0, lng: 125.0, timestamp: Date.now(), windSpeed: 85 },
-      { lat: 14.0, lng: 120.0, timestamp: Date.now() + 24*60*60*1000, windSpeed: 65 },
-      { lat: 12.0, lng: 115.0, timestamp: Date.now() + 48*60*60*1000, windSpeed: 45 },
-      { lat: 10.0, lng: 110.0, timestamp: Date.now() + 72*60*60*1000, windSpeed: 35 },
-    ],
-    coneRadius: 100, // 100km radius
-  }
+  enabled = true,
+  selectedStormId
 }: StormTrackProps) {
-  const parallelTracksSourceRef = useRef<string | null>(null);
-  const circlesSourceRef = useRef<string | null>(null);
-  const pointsSourceRef = useRef<string | null>(null);
-  const layersAddedRef = useRef<boolean>(false);
+  const animationFrameRef = useRef<number | null>(null);
+  const pulseRadiusRef = useRef<number>(6);
+  const pulseDirectionRef = useRef<number>(1); // 1 = growing, -1 = shrinking
 
-  // Function to create expanding circles geometry (forecast uncertainty circles)
-  const createCirclesGeometry = (points: StormPoint[], maxRadiusKm: number = 100) => {
+  // Get active storm data
+  const activeStorm = selectedStormId
+    ? mockStormTracks.find(storm => storm.storm_id === selectedStormId) || mockStormTracks[0]
+    : mockStormTracks[0];
+
+  // Convert StormTrackPoint to GeoJSON features
+  const createTrackLineFeature = useCallback((points: StormTrackPoint[]): GeoJSON.Feature => {
+    return {
+      type: 'Feature',
+      properties: {
+        storm_id: points[0]?.storm_id || '',
+        name: activeStorm?.name || ''
+      },
+      geometry: {
+        type: 'LineString',
+        coordinates: points.map(point => [point.lon, point.lat])
+      }
+    };
+  }, [activeStorm]);
+
+  const createTrackPointsFeatures = useCallback((points: StormTrackPoint[]): GeoJSON.Feature[] => {
+    return points.map((point, index) => ({
+      type: 'Feature',
+      properties: {
+        storm_id: point.storm_id,
+        wind_speed: point.wind_speed,
+        category: point.category,
+        timestamp: point.timestamp,
+        is_last_point: index === points.length - 1
+      },
+      geometry: {
+        type: 'Point',
+        coordinates: [point.lon, point.lat]
+      }
+    }));
+  }, []);
+
+  // Pulse animation for last point
+  const startPulseAnimation = useCallback(() => {
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
+
+    const animate = () => {
+      pulseRadiusRef.current += pulseDirectionRef.current * 0.3; // Speed of animation
+
+      if (pulseRadiusRef.current >= 20) {
+        pulseDirectionRef.current = -1; // Start shrinking
+      } else if (pulseRadiusRef.current <= 6) {
+        pulseDirectionRef.current = 1; // Start growing
+      }
+
+      // Update pulse circle radius
+      if (map && map.getLayer('storm-track-pulse')) {
+        try {
+          map.setPaintProperty('storm-track-pulse', 'circle-radius', pulseRadiusRef.current);
+        } catch (error) {
+          // Layer might not exist yet
+        }
+      }
+
+      animationFrameRef.current = requestAnimationFrame(animate);
+    };
+
+    animationFrameRef.current = requestAnimationFrame(animate);
+  }, [map]);
+
+  const stopPulseAnimation = useCallback(() => {
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+  }, []);
+
+  // Main effect to add/remove storm track layers
+  useEffect(() => {
+    if (!map || !enabled || !activeStorm) {
+      // Remove all layers if disabled
+      stopPulseAnimation();
+
+      try {
+        const layersToRemove = [
+          'storm-track-line',
+          'storm-track-points',
+          'storm-track-pulse'
+        ];
+
+        const sourcesToRemove = [
+          'storm-track-line-source',
+          'storm-track-points-source',
+          'storm-track-pulse-source'
+        ];
+
+        layersToRemove.forEach(layerId => {
+          if (map.getLayer(layerId)) {
+            map.removeLayer(layerId);
+          }
+        });
+
+        sourcesToRemove.forEach(sourceId => {
+          if (map.getSource(sourceId)) {
+            map.removeSource(sourceId);
+          }
+        });
+
+        console.log('🗑️ Removed all storm track layers');
+      } catch (error) {
+        console.error('❌ Error removing storm track layers:', error);
+      }
+
+      return;
+    }
+
+    const addLayersToMap = () => {
+      try {
+        console.log('🌪️ Adding storm track layers for:', activeStorm.name);
+
+        // 1. Line layer - đường track vàng/cam
+        const lineSourceId = 'storm-track-line-source';
+        const lineLayerId = 'storm-track-line';
+
+        if (!map.getSource(lineSourceId)) {
+          map.addSource(lineSourceId, {
+            type: 'geojson',
+            data: createTrackLineFeature(activeStorm.points)
+          });
+
+          map.addLayer({
+            id: lineLayerId,
+            type: 'line',
+            source: lineSourceId,
+            paint: {
+              'line-color': '#ffad33', // Vàng/cam
+              'line-width': 3,
+              'line-opacity': 0.9
+            }
+          });
+        } else {
+          (map.getSource(lineSourceId) as mapboxgl.GeoJSONSource).setData(createTrackLineFeature(activeStorm.points));
+        }
+
+        // 2. Points layer - các chấm theo cấp gió
+        const pointsSourceId = 'storm-track-points-source';
+        const pointsLayerId = 'storm-track-points';
+
+        if (!map.getSource(pointsSourceId)) {
+          map.addSource(pointsSourceId, {
+            type: 'geojson',
+            data: {
+              type: 'FeatureCollection',
+              features: createTrackPointsFeatures(activeStorm.points)
+            }
+          });
+
+          map.addLayer({
+            id: pointsLayerId,
+            type: 'circle',
+            source: pointsSourceId,
+            paint: {
+              // Circle radius: 6 → 20 theo wind speed
+              'circle-radius': [
+                'interpolate',
+                ['linear'],
+                ['get', 'wind_speed'],
+                20, 6,   // 20 m/s → radius 6
+                80, 20   // 80 m/s → radius 20
+              ],
+              // Circle color: interpolate theo wind speed
+              'circle-color': [
+                'interpolate',
+                ['linear'],
+                ['get', 'wind_speed'],
+                20, '#00bfff',  // 20 m/s → light blue
+                40, '#00ff00',  // 40 m/s → green
+                60, '#ffff00',  // 60 m/s → yellow
+                80, '#ff0000'   // 80 m/s → red
+              ],
+              // White border
+              'circle-stroke-color': '#ffffff',
+              'circle-stroke-width': 2
+            }
+          });
+        } else {
+          (map.getSource(pointsSourceId) as mapboxgl.GeoJSONSource).setData({
+            type: 'FeatureCollection',
+            features: createTrackPointsFeatures(activeStorm.points)
+          });
+        }
+
+        // 3. Pulse layer - chỉ cho điểm cuối cùng
+        const lastPoint = activeStorm.points[activeStorm.points.length - 1];
+        const pulseSourceId = 'storm-track-pulse-source';
+        const pulseLayerId = 'storm-track-pulse';
+
+        if (!map.getSource(pulseSourceId)) {
+          map.addSource(pulseSourceId, {
+            type: 'geojson',
+            data: {
+              type: 'Feature',
+              geometry: {
+                type: 'Point',
+                coordinates: [lastPoint.lon, lastPoint.lat]
+              },
+              properties: {
+                storm_id: lastPoint.storm_id,
+                wind_speed: lastPoint.wind_speed
+              }
+            }
+          });
+
+          map.addLayer({
+            id: pulseLayerId,
+            type: 'circle',
+            source: pulseSourceId,
+            paint: {
+              'circle-radius': 6, // Will be animated
+              'circle-color': [
+                'interpolate',
+                ['linear'],
+                ['get', 'wind_speed'],
+                20, '#00bfff',
+                40, '#00ff00',
+                60, '#ffff00',
+                80, '#ff0000'
+              ],
+              'circle-stroke-color': '#ffffff',
+              'circle-stroke-width': 3,
+              'circle-opacity': 0.8
+            }
+          });
+        } else {
+          (map.getSource(pulseSourceId) as mapboxgl.GeoJSONSource).setData({
+            type: 'Feature',
+            geometry: {
+              type: 'Point',
+              coordinates: [lastPoint.lon, lastPoint.lat]
+            },
+            properties: {
+              storm_id: lastPoint.storm_id,
+              wind_speed: lastPoint.wind_speed
+            }
+          });
+        }
+
+        // Start pulse animation
+        startPulseAnimation();
+
+        console.log('✅ Storm track layers added successfully');
+      } catch (error) {
+        console.error('❌ Error adding storm track layers:', error);
+      }
+    };
+
+    // Wait for map style to load
+    if (map.isStyleLoaded()) {
+      addLayersToMap();
+    } else {
+      map.once('style.load', addLayersToMap);
+    }
+
+    // Cleanup function
+    return () => {
+      stopPulseAnimation();
+      if (map.listeners('style.load').length > 0) {
+        map.off('style.load', addLayersToMap);
+      }
+    };
+  }, [map, enabled, activeStorm, createTrackLineFeature, createTrackPointsFeatures, startPulseAnimation, stopPulseAnimation]);
+
+  return null;
     const features: GeoJSON.Feature[] = [];
 
     points.forEach((point, index) => {
@@ -214,27 +461,29 @@ export default function StormTrack({
   useEffect(() => {
     if (!map || !enabled || !stormData.points.length) {
       // Remove layers if disabled
-      try {
-        const layersToRemove = [
-          'storm-track-forecast-points',
-          'storm-track-start-point',
-          'storm-track-parallel-lines',
-          'storm-track-circles'
-        ];
-        layersToRemove.forEach(layerId => {
-          if (map.getLayer(layerId)) map.removeLayer(layerId);
-        });
+      if (map) { // Check if map exists before using it
+        try {
+          const layersToRemove = [
+            'storm-track-forecast-points',
+            'storm-track-start-point',
+            'storm-track-parallel-lines',
+            'storm-track-circles'
+          ];
+          layersToRemove.forEach(layerId => {
+            if (map.getLayer(layerId)) map.removeLayer(layerId);
+          });
 
-        const sourcesToRemove = [
-          parallelTracksSourceRef.current,
-          circlesSourceRef.current,
-          pointsSourceRef.current
-        ];
-        sourcesToRemove.forEach(sourceId => {
-          if (sourceId && map.getSource(sourceId)) map.removeSource(sourceId);
-        });
-      } catch (error) {
-        console.error('Error removing storm track layers:', error);
+          const sourcesToRemove = [
+            parallelTracksSourceRef.current,
+            circlesSourceRef.current,
+            pointsSourceRef.current
+          ];
+          sourcesToRemove.forEach(sourceId => {
+            if (sourceId && map.getSource(sourceId)) map.removeSource(sourceId);
+          });
+        } catch (error) {
+          console.error('Error removing storm track layers:', error);
+        }
       }
       parallelTracksSourceRef.current = null;
       circlesSourceRef.current = null;
@@ -244,6 +493,14 @@ export default function StormTrack({
 
     // Update source data (always update, even if layers already added)
     const updateSourceData = () => {
+      if (!map || !stormData.points.length) return;
+
+      // Check if map style is loaded before adding sources
+      if (!map.isStyleLoaded()) {
+        console.warn('⏳ Map style not loaded yet, skipping storm track source update');
+        return;
+      }
+
       try {
         const parallelTracksSourceId = 'storm-parallel-tracks-data';
         const circlesSourceId = 'storm-circles-data';
@@ -278,8 +535,8 @@ export default function StormTrack({
         }
 
         parallelTracksSourceRef.current = parallelTracksSourceId;
-        circlesSourceRef.current = circlesSourceId;
-        pointsSourceRef.current = pointsSourceId;
+        circlesSourceRef.current = circlesSourceRef.current || circlesSourceId;
+        pointsSourceRef.current = pointsSourceRef.current || pointsSourceId;
       } catch (error) {
         console.error('❌ Error updating storm track data:', error);
       }
@@ -287,6 +544,18 @@ export default function StormTrack({
 
     // Always update source data first
     updateSourceData();
+
+    // If sources weren't added due to style not loaded, set up fallback
+    if (!parallelTracksSourceRef.current) {
+      console.log('⏳ Sources not ready, setting up fallback for storm tracks...');
+      setTimeout(() => {
+        if (!parallelTracksSourceRef.current && map.isStyleLoaded()) {
+          console.log('✅ Style loaded, adding storm track sources now');
+          updateSourceData();
+          addStormTrackLayers();
+        }
+      }, 3000);
+    }
 
     // Wait for map to be fully loaded and wind layer to exist
     const addStormTrackLayers = () => {
@@ -438,10 +707,10 @@ export default function StormTrack({
       console.error('❌ Error adding storm track:', error);
       layersAddedRef.current = false; // Reset on error
     }
-    };
+  };
 
-    // Start adding layers after wind layer is ready (only once)
-    addStormTrackLayers();
+  // Start adding layers after wind layer is ready (only once)
+  addStormTrackLayers();
 
     // Cleanup function
     return () => {

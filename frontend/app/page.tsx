@@ -5,21 +5,37 @@ import { Map } from './components/map';
 import { Sidebar } from './components/sidebar';
 import { NewsItem, newsItems } from './components/news';
 import { RescueRequest, rescueRequests } from './components/rescue';
+import { mockStorms, type Storm } from './data';
 
 export default function Home() {
   const flyToLocationRef = useRef<((lng: number, lat: number, zoom?: number) => void) | null>(null);
-  const [activeTab, setActiveTab] = useState<'news' | 'rescue' | 'chatbot'>('news');
+  const [activeTab, setActiveTab] = useState<'news' | 'rescue' | 'damage' | 'chatbot'>('news');
   const [selectedNewsId, setSelectedNewsId] = useState<number | null>(null);
+  const [selectedStorm, setSelectedStorm] = useState<Storm>(mockStorms[0]); // Default to first storm
 
   const handleMapReady = (flyToLocation: (lng: number, lat: number, zoom?: number) => void) => {
     flyToLocationRef.current = flyToLocation;
   };
 
-  const handleTabChange = (tab: 'news' | 'rescue' | 'chatbot') => {
+  const handleTabChange = (tab: 'news' | 'rescue' | 'damage' | 'chatbot') => {
     setActiveTab(tab);
     // Clear selected news when changing tabs
     if (tab !== 'news') {
       setSelectedNewsId(null);
+    }
+  };
+
+  const handleStormChange = (storm: Storm) => {
+    console.log('🌪️ Storm changed:', storm.name);
+    setSelectedStorm(storm);
+  };
+
+  const handleDamageClick = (damage: any) => {
+    console.log('🏗️ Damage clicked:', damage);
+
+    // Zoom to damage location
+    if (flyToLocationRef.current && damage.lat && damage.lon) {
+      flyToLocationRef.current(damage.lon, damage.lat, 10);
     }
   };
 
@@ -57,8 +73,11 @@ export default function Home() {
       <Sidebar
         onNewsClick={handleNewsClick}
         onRescueClick={handleRescueClick}
+        onDamageClick={handleDamageClick}
         onTabChange={handleTabChange}
+        onStormChange={handleStormChange}
         selectedNewsId={selectedNewsId}
+        selectedStorm={selectedStorm}
       />
       <div className="absolute inset-0">
         <Map
@@ -67,6 +86,7 @@ export default function Home() {
           newsItems={newsItems}
           activeTab={activeTab}
           onNewsClick={handleNewsClick}
+          selectedStorm={selectedStorm}
         />
       </div>
     </main>

@@ -5,4 +5,4 @@ export { default as WindLegend } from './WindLegend';
 export { default as WindLayer } from './WindLayer';
 export { default as ZoomControls } from './ZoomControls';
 export { default as LayerControls } from './LayerControls';
-export { default as StormTrack } from './StormTrack';
+export { default as StormTrackLayer } from './StormTrackLayer';

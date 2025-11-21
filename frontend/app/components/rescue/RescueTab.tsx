@@ -1,7 +1,43 @@
 'use client';
 
 import { useState } from 'react';
-import { RescueRequest, rescueRequests } from './rescueData';
+import { RescueRequest as MockRescueRequest, getRescueRequests } from '../../data';
+
+// Extended interface for RescueTab component
+export interface RescueRequest {
+  id: number;
+  name: string;
+  phone: string;
+  coordinates: [number, number]; // [lng, lat]
+  address: string;
+  category: string;
+  urgency: 'critical' | 'high' | 'medium' | 'low';
+  numberOfPeople: number;
+  description: string;
+  status: 'pending' | 'in-progress' | 'completed';
+  timestamp: string;
+}
+
+// Convert MockRescueRequest to RescueRequest format
+const convertMockToRescueRequest = (mockRequest: MockRescueRequest): RescueRequest => {
+  const urgency = mapSeverityToUrgency(mockRequest.severity);
+  const categories = ['medical', 'trapped', 'food-water', 'evacuation', 'other'];
+  const category = categories[Math.floor(Math.random() * categories.length)]; // Random category for demo
+
+  return {
+    id: mockRequest.request_id,
+    name: `Yêu cầu cứu hộ #${mockRequest.request_id}`,
+    phone: mockRequest.phone,
+    coordinates: [mockRequest.lon, mockRequest.lat],
+    address: `Vị trí ${mockRequest.lat.toFixed(4)}°N, ${mockRequest.lon.toFixed(4)}°E`,
+    category,
+    urgency,
+    numberOfPeople: Math.floor(Math.random() * 10) + 1, // Random number for demo
+    description: `Yêu cầu cứu hộ khẩn cấp tại khu vực bị ảnh hưởng bởi bão. Mức độ nghiêm trọng: ${mockRequest.severity}/5.`,
+    status: mockRequest.verified ? 'pending' : 'in-progress',
+    timestamp: new Date(mockRequest.created_at).toLocaleString('vi-VN')
+  };
+};
 import RescueRequestForm from './RescueRequestForm';
 
 const urgencyColors = {
@@ -9,6 +45,14 @@ const urgencyColors = {
   high: { bg: 'bg-orange-500/10', border: 'border-orange-500', text: 'text-orange-400', badge: 'bg-orange-500' },
   medium: { bg: 'bg-yellow-500/10', border: 'border-yellow-500', text: 'text-yellow-400', badge: 'bg-yellow-500' },
   low: { bg: 'bg-green-500/10', border: 'border-green-500', text: 'text-green-400', badge: 'bg-green-500' },
+};
+
+// Map severity number to urgency level
+const mapSeverityToUrgency = (severity: number): keyof typeof urgencyColors => {
+  if (severity >= 5) return 'critical';
+  if (severity >= 4) return 'high';
+  if (severity >= 3) return 'medium';
+  return 'low';
 };
 
 const statusLabels = {
@@ -27,12 +71,17 @@ const categoryIcons = {
 
 type RescueTabProps = {
   onRescueClick?: (rescue: RescueRequest) => void;
+  stormId?: number;
 };
 
-export default function RescueTab({ onRescueClick }: RescueTabProps) {
+export default function RescueTab({ onRescueClick, stormId }: RescueTabProps) {
   const [showForm, setShowForm] = useState(false);
   const [selectedUrgency, setSelectedUrgency] = useState<string>('all');
   const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  // Get rescue requests from mock data helpers (simulating API call)
+  const mockRescueRequests = stormId ? getRescueRequests(stormId) : [];
+  const rescueRequests = mockRescueRequests.map(convertMockToRescueRequest);
 
   const filteredRequests = selectedUrgency === 'all'
     ? rescueRequests

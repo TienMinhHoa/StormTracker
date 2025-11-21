@@ -3,13 +3,15 @@
 import { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import { fetchGFSWindData, WindData } from './services/gfsService';
+import { loadWindDataForTimestamp, AVAILABLE_TIMESTAMPS, WindTimestamp, TIFFWindData } from './services/tiffService';
 import { renderWindyStyle } from './utils/windyColorScale';
+import { WebGLWindRenderer } from './webgl';
 
 interface WindLayerProps {
   map: mapboxgl.Map | null;
   enabled?: boolean;
   opacity?: number;
-  forecastHour?: number; // Giờ dự báo (0 = hiện tại, 3 = +3h, etc.)
+  timestamp?: string; // Timestamp format: "YYYY-MM-DD HH:MM"
   onLoadingChange?: (loading: boolean) => void;
   onDataLoaded?: (data: WindData) => void;
 }
@@ -67,18 +69,46 @@ export default function WindLayer({
   map,
   enabled = true,
   opacity = 0.7,
-  forecastHour = 0,
+  timestamp,
   onLoadingChange,
   onDataLoaded
 }: WindLayerProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const webglRendererRef = useRef<WebGLWindRenderer | null>(null);
   const loadHandlerRef = useRef<(() => void) | null>(null);
   const styleLoadHandlerRef = useRef<(() => void) | null>(null);
   const [windData, setWindData] = useState<WindData | null>(null);
+  const [windData_t1, setWindData_t1] = useState<TIFFWindData | null>(null);
+  const [windData_t2, setWindData_t2] = useState<TIFFWindData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [layerReady, setLayerReady] = useState(false);
+  const [useWebGL, setUseWebGL] = useState(true); // Enable WebGL by default
 
-  // Fetch dữ liệu GFS
+  // Initialize WebGL renderer
+  useEffect(() => {
+    if (!canvasRef.current || !useWebGL) return;
+    
+    try {
+      webglRendererRef.current = new WebGLWindRenderer({
+        canvas: canvasRef.current,
+        speedRange: [0, 30],
+        opacity: opacity
+      });
+      console.log('✅ WebGL renderer initialized');
+    } catch (error) {
+      console.error('❌ Failed to initialize WebGL renderer, falling back to canvas:', error);
+      setUseWebGL(false);
+    }
+    
+    return () => {
+      if (webglRendererRef.current) {
+        webglRendererRef.current.destroy();
+        webglRendererRef.current = null;
+      }
+    };
+  }, [canvasRef.current, useWebGL]);
+
+  // Fetch dữ liệu wind theo timestamp
   useEffect(() => {
     if (!enabled) {
       setLayerReady(false);
@@ -91,10 +121,61 @@ export default function WindLayer({
       onLoadingChange?.(true);
 
       try {
-        const data = await fetchGFSWindData(forecastHour);
+        // Use provided timestamp or get current one
+        const targetTimestamp = timestamp || AVAILABLE_TIMESTAMPS[0]?.timestamp;
+        if (!targetTimestamp) {
+          throw new Error('No timestamp available');
+        }
+
+        console.log(`🌪️ Loading wind data for timestamp: ${targetTimestamp}`);
+
+        // Try to load from GFS_process first, fallback to GFS service
+        let data: WindData;
+        let tiffData: TIFFWindData | null = null;
+        
+        try {
+          tiffData = await loadWindDataForTimestamp(targetTimestamp);
+          
+          // Convert TIFFWindData to WindData format for legacy rendering
+          data = {
+            u: new Float32Array(tiffData.u),
+            v: new Float32Array(tiffData.v),
+            speed: new Float32Array(tiffData.speed),
+            width: tiffData.width,
+            height: tiffData.height,
+            bbox: tiffData.bbox
+          };
+          
+          // Load into WebGL renderer (t1 = current)
+          if (useWebGL && webglRendererRef.current && tiffData) {
+            webglRendererRef.current.loadWindData_t1(tiffData);
+            setWindData_t1(tiffData);
+            
+            // Try to preload next timestamp for smooth transitions
+            const currentIndex = AVAILABLE_TIMESTAMPS.findIndex(t => t.timestamp === targetTimestamp);
+            if (currentIndex >= 0 && currentIndex < AVAILABLE_TIMESTAMPS.length - 1) {
+              const nextTimestamp = AVAILABLE_TIMESTAMPS[currentIndex + 1].timestamp;
+              try {
+                const nextTiffData = await loadWindDataForTimestamp(nextTimestamp);
+                webglRendererRef.current.loadWindData_t2(nextTiffData);
+                setWindData_t2(nextTiffData);
+                console.log(`✅ Preloaded next timestamp: ${nextTimestamp}`);
+              } catch (preloadError) {
+                console.warn('⚠️ Failed to preload next timestamp:', preloadError);
+              }
+            }
+          }
+          
+          console.log(`✅ Loaded TIFF wind data for ${targetTimestamp}`);
+        } catch (tiffError) {
+          console.warn('❌ TIFF loading failed, falling back to GFS service:', tiffError);
+          // Fallback to original GFS service
+          data = await fetchGFSWindData(0); // Use hour 0 as fallback
+          console.log(`✅ Loaded GFS fallback wind data`);
+        }
+
         setWindData(data);
         onDataLoaded?.(data);
-        console.log(`🌪️ Loaded GFS wind data for +${forecastHour}h forecast`);
       } catch (error) {
         console.error('Failed to load wind data:', error);
         setLayerReady(false);
@@ -105,7 +186,7 @@ export default function WindLayer({
     };
 
     loadWindData();
-  }, [enabled, forecastHour, onLoadingChange, onDataLoaded]);
+  }, [enabled, timestamp, onLoadingChange, onDataLoaded, useWebGL]);
 
   // Render layer khi có dữ liệu
   useEffect(() => {
@@ -128,13 +209,24 @@ export default function WindLayer({
       return;
     }
 
-    // Render với Windy.com color scale (custom rendering)
-    console.log('🖼️ Rendering with Windy.com color scale...');
-    renderWindyStyle(canvas, speed, width, height, [0, 30]);
+    let dataUrl: string;
+    
+    // Use WebGL renderer if available (30-60x faster!)
+    if (useWebGL && webglRendererRef.current) {
+      console.log('⚡ Rendering with WebGL (hardware-accelerated)...');
+      webglRendererRef.current.setOpacity(opacity);
+      webglRendererRef.current.render();
+      dataUrl = webglRendererRef.current.toDataURL();
+      console.log('✅ WebGL rendering complete');
+    } else {
+      // Fallback to canvas rendering (legacy)
+      console.log('🖼️ Rendering with Canvas (legacy)...');
+      renderWindyStyle(canvas, speed, width, height, [0, 30]);
+      dataUrl = canvas.toDataURL();
+      console.log('✅ Canvas rendering complete');
+    }
 
-    // Chuyển canvas thành data URL
-    const dataUrl = canvas.toDataURL();
-    console.log('📊 Canvas rendered, data URL length:', dataUrl.length);
+    console.log('📊 Data URL length:', dataUrl.length);
 
     // Tính toán coordinates cho Mapbox (dựa trên bbox)
     const [west, south, east, north] = bbox;
@@ -169,51 +261,133 @@ export default function WindLayer({
 
     // Thêm layer vào map (map có thể đã load hoặc chưa)
     const addLayerToMap = () => {
-      // Check nếu map đã load (cả style và data)
-      if (map.loaded() && map.isStyleLoaded()) {
-        // Map đã load, thêm layer ngay
-        console.log('✅ Map already loaded, adding layer immediately');
+      // Clear any existing listeners
+      if (loadHandlerRef.current) {
+        loadHandlerRef.current = null;
+      }
+      if (styleLoadHandlerRef.current) {
+        styleLoadHandlerRef.current = null;
+      }
+
+      // Check if map style is loaded
+      if (map.isStyleLoaded()) {
+        console.log('✅ Map style loaded, adding layer immediately');
         addLayerToMapInternal();
       } else {
-        // Map chưa load, đợi event 'load' hoặc 'style.load'
-        console.log('⏳ Map not loaded yet, waiting for load event...');
+        // Wait for style to load
+        console.log('⏳ Waiting for map style to load...');
 
-        // Try both 'load' and 'style.load' events
-        const onMapReady = () => {
-          console.log('✅ Map ready, adding layer now');
-          // Clear refs
-          loadHandlerRef.current = null;
+        const onStyleReady = () => {
+          console.log('✅ Map style ready, adding layer now');
           styleLoadHandlerRef.current = null;
           addLayerToMapInternal();
         };
 
-        // Listen to both events (whichever fires first)
-        if (map.isStyleLoaded()) {
-          // Style loaded, just wait for data
-          loadHandlerRef.current = onMapReady;
-          map.once('load', onMapReady);
-        } else {
-          // Style not loaded, wait for style first
-          const onStyleLoad = () => {
-            loadHandlerRef.current = onMapReady;
-            map.once('load', onMapReady);
-          };
-          styleLoadHandlerRef.current = onStyleLoad;
-          map.once('style.load', onStyleLoad);
-        }
+        styleLoadHandlerRef.current = onStyleReady;
+        map.once('style.load', onStyleReady);
+
+        // Fallback timeout
+        setTimeout(() => {
+          if (styleLoadHandlerRef.current) {
+            console.log('⏰ Style load timeout, checking if ready...');
+            styleLoadHandlerRef.current = null;
+            if (map.isStyleLoaded()) {
+              addLayerToMapInternal();
+            }
+          }
+        }, 3000);
       }
     };
 
     const addLayerToMapInternal = () => {
-      // Cập nhật hoặc tạo layer
+      // Cập nhật hoặc tạo layer - Strategy: Đè lớp mới lên, GIỮ layer mới, xóa layer cũ
       console.log('🗺️ Adding/updating map layer...');
 
       if (map.getSource('wind-layer')) {
-        console.log('🔄 Updating existing wind layer');
+        console.log('🔄 Overlay new layer on top of old layer');
         try {
-          (map.getSource('wind-layer') as mapboxgl.ImageSource).updateImage({ url: dataUrl, coordinates: coordinates });
-          console.log(`✅ Wind layer updated with Windy.com color scale`);
-          setLayerReady(true);
+          // Tạo layer mới với ID tạm thời, đè lên layer cũ
+          const tempSourceId = 'wind-layer-new';
+          const tempLayerId = 'wind-raster-layer-new';
+          
+          // Remove temp if exists from previous update
+          if (map.getLayer(tempLayerId)) {
+            map.removeLayer(tempLayerId);
+          }
+          if (map.getSource(tempSourceId)) {
+            map.removeSource(tempSourceId);
+          }
+          
+          // Add NEW layer with new data (full opacity) ON TOP
+          map.addSource(tempSourceId, {
+            type: 'image',
+            url: dataUrl,
+            coordinates: coordinates
+          });
+          
+          map.addLayer({
+            id: tempLayerId,
+            type: 'raster',
+            source: tempSourceId,
+            paint: {
+              'raster-opacity': opacity,
+              'raster-fade-duration': 0
+            }
+          }); // Add on top (no beforeId)
+          
+          console.log('✅ New layer rendered on top');
+          
+          // Đợi 1 frame để đảm bảo layer mới đã render
+          requestAnimationFrame(() => {
+            try {
+              // Xóa layer CŨ (layer mới đã che phủ)
+              if (map.getLayer('wind-raster-layer')) {
+                map.removeLayer('wind-raster-layer');
+                console.log('🗑️ Removed old layer');
+              }
+              if (map.getSource('wind-layer')) {
+                map.removeSource('wind-layer');
+                console.log('🗑️ Removed old source');
+              }
+              
+              // Swap tên: new → main
+              // Bước 1: Xóa layer NEW trước (vì layer đang dùng source)
+              if (map.getLayer(tempLayerId)) {
+                map.removeLayer(tempLayerId);
+                console.log('🗑️ Removed temp layer');
+              }
+              
+              // Bước 2: Xóa source NEW
+              if (map.getSource(tempSourceId)) {
+                map.removeSource(tempSourceId);
+                console.log('🗑️ Removed temp source');
+              }
+              
+              // Bước 3: Tạo lại source và layer với tên chính
+              map.addSource('wind-layer', {
+                type: 'image',
+                url: dataUrl,
+                coordinates: coordinates
+              });
+              
+              map.addLayer({
+                id: 'wind-raster-layer',
+                type: 'raster',
+                source: 'wind-layer',
+                paint: {
+                  'raster-opacity': opacity,
+                  'raster-fade-duration': 0
+                }
+              }, 'wind-country-boundaries'); // Insert before boundaries
+              
+              console.log(`✅ Layer swap complete (no flicker)`);
+              setLayerReady(true);
+            } catch (err) {
+              console.error('❌ Error during layer swap:', err);
+              setLayerReady(false);
+            }
+          });
+          
         } catch (error) {
           console.error('❌ Error updating wind layer:', error);
           setLayerReady(false);
@@ -233,7 +407,7 @@ export default function WindLayer({
             source: 'wind-layer',
             paint: {
               'raster-opacity': opacity,
-              'raster-fade-duration': 300
+              'raster-fade-duration': 0
             }
           });
 
@@ -252,7 +426,7 @@ export default function WindLayer({
 
     addLayerToMap();
 
-    // Cleanup function
+    // Cleanup function - CHỈ cleanup event listeners, KHÔNG xóa layer
     return () => {
       // Remove event listeners nếu chưa fire
       if (loadHandlerRef.current) {
@@ -264,7 +438,17 @@ export default function WindLayer({
         styleLoadHandlerRef.current = null;
       }
 
-      // Remove layer và source
+      // KHÔNG xóa layer ở đây - để layer cũ hiển thị cho đến khi có layer mới
+      // Layer sẽ được update trong addLayerToMapInternal()
+    };
+  }, [map, enabled, windData]); // Không phụ thuộc vào opacity để tránh re-render không cần thiết
+  
+  // Cleanup khi component unmount hoàn toàn
+  useEffect(() => {
+    return () => {
+      if (!map) return;
+      
+      // Chỉ xóa layer khi component unmount
       try {
         if (map.getLayer('wind-raster-layer')) {
           map.removeLayer('wind-raster-layer');
@@ -272,30 +456,58 @@ export default function WindLayer({
         if (map.getSource('wind-layer')) {
           map.removeSource('wind-layer');
         }
+        if (map.getLayer('wind-raster-layer-new')) {
+          map.removeLayer('wind-raster-layer-new');
+        }
+        if (map.getSource('wind-layer-new')) {
+          map.removeSource('wind-layer-new');
+        }
       } catch (error) {
         // Ignore errors during cleanup
       }
     };
-  }, [map, enabled, windData]); // Không phụ thuộc vào opacity để tránh re-render không cần thiết
+  }, [map]);
 
-  // Update opacity khi thay đổi (không re-render canvas)
+  // Update opacity khi thay đổi
   useEffect(() => {
     if (!map || !enabled || !layerReady) return;
 
-    const layerId = 'wind-raster-layer';
-    if (map.getLayer(layerId)) {
-      try {
-        map.setPaintProperty(layerId, 'raster-opacity', opacity);
-        console.log(`🎨 Updated wind layer opacity to ${opacity}`);
-      } catch (error) {
-        console.error('❌ Error updating opacity:', error);
-        setLayerReady(false);
+    // Update WebGL renderer opacity (no re-render needed, just shader uniform update)
+    if (useWebGL && webglRendererRef.current) {
+      webglRendererRef.current.setOpacity(opacity);
+      webglRendererRef.current.render();
+      
+      // Update Mapbox layer with new rendering
+      const dataUrl = webglRendererRef.current.toDataURL();
+      if (map.getSource('wind-layer')) {
+        try {
+          const source = map.getSource('wind-layer') as mapboxgl.ImageSource;
+          const coords = source.coordinates;
+          if (coords) {
+            source.updateImage({ url: dataUrl, coordinates: coords });
+            console.log(`⚡ Updated WebGL wind layer opacity to ${opacity}`);
+          }
+        } catch (error) {
+          console.error('❌ Error updating WebGL opacity:', error);
+        }
       }
     } else {
-      console.log('⏭️ Skipping opacity update - layer not found');
-      setLayerReady(false);
+      // Legacy canvas rendering - update map layer opacity
+      const layerId = 'wind-raster-layer';
+      if (map.getLayer(layerId)) {
+        try {
+          map.setPaintProperty(layerId, 'raster-opacity', opacity);
+          console.log(`🎨 Updated wind layer opacity to ${opacity}`);
+        } catch (error) {
+          console.error('❌ Error updating opacity:', error);
+          setLayerReady(false);
+        }
+      } else {
+        console.log('⏭️ Skipping opacity update - layer not found');
+        setLayerReady(false);
+      }
     }
-  }, [map, enabled, opacity, layerReady]);
+  }, [map, enabled, opacity, layerReady, useWebGL]);
 
   return (
     <canvas
