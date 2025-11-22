@@ -18,7 +18,7 @@ interface StormTrackLayerProps {
   map: mapboxgl.Map | null;
   enabled?: boolean;
   stormId?: string;
-  tracks?: StormTrackPoint[];
+  tracks?: StormTrackPoint[]; // If provided, use API tracks; otherwise use mock data
 }
 
 // Mock data (Philippines typhoon) - Sync với wind data timeline (20-21/11/2025)
@@ -142,15 +142,13 @@ function createTrackPointsGeometry(tracks: StormTrackPoint[]) {
         category: track.category,
         wind_speed: track.wind_speed,
         is_latest: index === tracks.length - 1,
-        // Format timestamp for display: "DD/MM/YYYY - HHh00"
-        display_time: new Date(track.timestamp).toLocaleString('en-GB', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false
-        }).replace(',', ' -').replace(':00', 'h00'),
+        // Format timestamp for display: "DD-HHh" (ví dụ: "20-15h" cho ngày 20, giờ 15:00)
+        display_time: (() => {
+          const date = new Date(track.timestamp);
+          const day = date.getDate().toString().padStart(2, '0');
+          const hour = date.getHours().toString().padStart(2, '0');
+          return `${day}-${hour}h`;
+        })(),
         is_forecast: index >= 3 // Points from index 3 onwards are forecast
       },
       geometry: {
@@ -172,9 +170,9 @@ function createForecastConesGeometry(tracks: StormTrackPoint[], forecastStartInd
     type: 'FeatureCollection',
     features: forecastPoints.map((track, index) => {
       // Radius increases with forecast time (uncertainty grows)
-      // Base radius: 50km, increases by 30km per 12 hours
+      // Base radius: 20km, increases by 10km per 12 hours (giảm đáng kể để nhỏ hơn)
       const hoursFromNow = (index + 1) * 12;
-      const radiusKm = 50 + (hoursFromNow / 12) * 30;
+      const radiusKm = 20 + (hoursFromNow / 12) * 10;
       const radiusInDegrees = radiusKm / 111; // 1 degree ≈ 111 km
       
       return {
@@ -206,7 +204,7 @@ function createOverallConeGeometry(tracks: StormTrackPoint[], forecastStartIndex
   // Calculate outer edges for each forecast point
   forecastPoints.forEach((track, index) => {
     const hoursFromNow = (index + 1) * 12;
-    const radiusKm = 50 + (hoursFromNow / 12) * 30;
+    const radiusKm = 20 + (hoursFromNow / 12) * 10;  // Giảm base radius và increment
     const radiusDegrees = radiusKm / 111;
     
     // Add points around the circle (8 points for smooth polygon)
@@ -389,14 +387,15 @@ export default function StormTrackLayer({
               'interpolate',
               ['linear'],
               ['zoom'],
-              4, ['*', ['get', 'radius'], 50],   // At zoom 4
-              8, ['*', ['get', 'radius'], 100],  // At zoom 8
-              12, ['*', ['get', 'radius'], 200]  // At zoom 12
+              4, ['*', ['get', 'radius'], 15],   // At zoom 4 (giảm từ 50 xuống 15)
+              6, ['*', ['get', 'radius'], 25],   // At zoom 6 (thêm level 6x)
+              8, ['*', ['get', 'radius'], 40],   // At zoom 8 (giảm từ 100 xuống 40)
+              12, ['*', ['get', 'radius'], 80]   // At zoom 12 (giảm từ 200 xuống 80)
             ],
             'circle-color': 'rgba(0, 0, 0, 0)', // Transparent fill
             'circle-stroke-color': '#ffffff',
-            'circle-stroke-width': 2,
-            'circle-stroke-opacity': 0.7
+            'circle-stroke-width': 1,  // Giảm từ 2 xuống 1 để mỏng hơn
+            'circle-stroke-opacity': 0.4  // Giảm từ 0.7 xuống 0.4 để mờ hơn, không rối mắt
           }
         });
         console.log('✅ Added cones layer');
@@ -410,8 +409,8 @@ export default function StormTrackLayer({
             'circle-radius': [
               'case',
               ['get', 'is_forecast'],
-              8,  // Forecast points: 8px
-              6   // Past points: 6px
+              4,  // Forecast points: 4px (giảm từ 8)
+              3   // Past points: 3px (giảm từ 6)
             ],
             'circle-color': [
               'case',
@@ -426,7 +425,7 @@ export default function StormTrackLayer({
         });
         console.log('✅ Added points layer');
 
-        // 4. Add timestamp labels
+        // 5. Add timestamp labels - format "DD-HHh" (ví dụ: "20-15h")
         map.addLayer({
           id: labelsLayerId,
           type: 'symbol',
@@ -434,16 +433,16 @@ export default function StormTrackLayer({
           layout: {
             'text-field': ['get', 'display_time'],
             'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-            'text-size': 12,
+            'text-size': 11,
             'text-anchor': 'left',
-            'text-offset': [1.5, 0],
-            'text-allow-overlap': true,
+            'text-offset': [1.2, 0],
+            'text-allow-overlap': false,
             'text-ignore-placement': false
           },
           paint: {
             'text-color': '#000000',
             'text-halo-color': '#ffffff',
-            'text-halo-width': 2
+            'text-halo-width': 1.5
           }
         });
         console.log('✅ Added labels layer');

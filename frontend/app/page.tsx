@@ -5,13 +5,13 @@ import { Map } from './components/map';
 import { Sidebar } from './components/sidebar';
 import { NewsItem, newsItems } from './components/news';
 import { RescueRequest, rescueRequests } from './components/rescue';
-import { mockStorms, type Storm } from './data';
+import type { Storm } from './services/stormApi';
 
 export default function Home() {
   const flyToLocationRef = useRef<((lng: number, lat: number, zoom?: number) => void) | null>(null);
   const [activeTab, setActiveTab] = useState<'news' | 'rescue' | 'damage' | 'chatbot'>('news');
   const [selectedNewsId, setSelectedNewsId] = useState<number | null>(null);
-  const [selectedStorm, setSelectedStorm] = useState<Storm>(mockStorms[0]); // Default to first storm
+  const [selectedStorm, setSelectedStorm] = useState<Storm | null>(null); // Will be set by Sidebar when storms load
 
   const handleMapReady = (flyToLocation: (lng: number, lat: number, zoom?: number) => void) => {
     flyToLocationRef.current = flyToLocation;

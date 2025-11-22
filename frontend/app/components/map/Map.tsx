@@ -11,6 +11,7 @@ import StormTrackLayer from './StormTrackLayer';
 import MapInfo from './MapInfo';
 import { RescueRequest } from '../rescue';
 import { AVAILABLE_TIMESTAMPS } from './services/tiffService';
+import { getStormTracks, type Storm, type StormTrack } from '../../services/stormApi';
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!;
 
@@ -20,7 +21,7 @@ type MapProps = {
   newsItems?: Array<{ id: number; coordinates: [number, number]; title: string; image: string; category: string }>;
   activeTab?: 'news' | 'rescue' | 'damage' | 'chatbot';
   onNewsClick?: (news: any) => void;
-  selectedStorm?: any;
+  selectedStorm?: Storm | null;
 };
 
 export default function Map({ onMapReady, rescueRequests = [], newsItems = [], activeTab = 'news', onNewsClick, selectedStorm }: MapProps) {
@@ -41,6 +42,10 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
   const [windLoading, setWindLoading] = useState(false);
   const [windData, setWindData] = useState<any>(null);
   const [mapReady, setMapReady] = useState(false);
+  
+  // Storm tracks state
+  const [stormTracks, setStormTracks] = useState<StormTrack[]>([]);
+  const [loadingTracks, setLoadingTracks] = useState(false);
 
   // Set default timestamp on mount
   useEffect(() => {
@@ -48,6 +53,31 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
       setWindTimestamp(AVAILABLE_TIMESTAMPS[0].timestamp);
     }
   }, []);
+
+  // Load storm tracks when selectedStorm changes
+  useEffect(() => {
+    const loadTracks = async () => {
+      if (!selectedStorm?.storm_id) {
+        setStormTracks([]);
+        return;
+      }
+
+      try {
+        setLoadingTracks(true);
+        console.log(`🌪️ Loading tracks for storm: ${selectedStorm.storm_id}`);
+        const tracks = await getStormTracks(selectedStorm.storm_id);
+        console.log(`✅ Loaded ${tracks.length} tracks`);
+        setStormTracks(tracks);
+      } catch (error) {
+        console.error('❌ Failed to load storm tracks:', error);
+        setStormTracks([]);
+      } finally {
+        setLoadingTracks(false);
+      }
+    };
+
+    loadTracks();
+  }, [selectedStorm]);
 
   // Storm track always enabled
   const stormTrackEnabled = false; // Temporarily disabled due to timing issues
@@ -359,6 +389,7 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
         <StormTrackLayer
           map={map.current}
           enabled={true}
+          tracks={stormTracks}
         />
       )}
 
@@ -368,6 +399,7 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
           <TimeControls
             currentTimestamp={windTimestamp}
             onTimestampChange={setWindTimestamp}
+            selectedStorm={selectedStorm}
             className="pointer-events-auto flex-1 ml-80"
           />
 

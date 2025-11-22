@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { NewsTab, NewsItem } from '../news';
 import { RescueTab, RescueRequest } from '../rescue';
 import { ChatbotTab } from '../chatbot';
 import { DamageTab } from '../damage';
-import { mockStorms, type Storm } from '../../data';
+import { getStorms, type Storm } from '../../services/stormApi';
 
 type Tab = 'news' | 'rescue' | 'damage' | 'chatbot';
 
@@ -30,7 +30,32 @@ export default function Sidebar({
 }: SidebarProps) {
   const [activeTab, setActiveTab] = useState<Tab>('news');
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [selectedStormLocal, setSelectedStormLocal] = useState<Storm>(mockStorms[0]); // Default to first storm
+  const [storms, setStorms] = useState<Storm[]>([]);
+  const [loadingStorms, setLoadingStorms] = useState(true);
+  const [selectedStormLocal, setSelectedStormLocal] = useState<Storm | null>(null);
+
+  // Load storms from API
+  useEffect(() => {
+    const loadStorms = async () => {
+      try {
+        setLoadingStorms(true);
+        const stormsData = await getStorms(0, 100);
+        setStorms(stormsData);
+        
+        // Select first storm by default if available
+        if (stormsData.length > 0 && !selectedStorm) {
+          setSelectedStormLocal(stormsData[0]);
+          onStormChange?.(stormsData[0]);
+        }
+      } catch (error) {
+        console.error('❌ Failed to load storms:', error);
+      } finally {
+        setLoadingStorms(false);
+      }
+    };
+
+    loadStorms();
+  }, []);
 
   const handleTabChange = (tab: Tab) => {
     setActiveTab(tab);
@@ -115,25 +140,33 @@ export default function Sidebar({
 
               {/* Storm Selector */}
               <div className="relative">
-                <select
-                  value={currentStorm.storm_id}
-                  onChange={(e) => {
-                    const storm = mockStorms.find(s => s.storm_id === parseInt(e.target.value));
-                    if (storm) handleStormChange(storm);
-                  }}
-                  className="w-full bg-[#1c2127] border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-teal-500 appearance-none"
-                >
-                  {mockStorms.map((storm) => (
-                    <option key={storm.storm_id} value={storm.storm_id}>
-                      {storm.name} {storm.end_date ? '(Đã kết thúc)' : '(Đang hoạt động)'}
-                    </option>
-                  ))}
-                </select>
-                <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
-                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </div>
+                {loadingStorms ? (
+                  <div className="w-full bg-[#1c2127] border border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-400">
+                    Đang tải...
+                  </div>
+                ) : (
+                  <>
+                    <select
+                      value={currentStorm?.storm_id || ''}
+                      onChange={(e) => {
+                        const storm = storms.find(s => s.storm_id === e.target.value);
+                        if (storm) handleStormChange(storm);
+                      }}
+                      className="w-full bg-[#1c2127] border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-teal-500 appearance-none"
+                    >
+                      {storms.map((storm) => (
+                        <option key={storm.storm_id} value={storm.storm_id}>
+                          {storm.name} {storm.end_date ? '(Đã kết thúc)' : '(Đang hoạt động)'}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -181,9 +214,9 @@ export default function Sidebar({
 
             {/* Tab Content */}
             <div className="flex-1 overflow-hidden flex flex-col">
-              {activeTab === 'news' && <NewsTab onNewsClick={onNewsClick} selectedNewsId={selectedNewsId} stormId={currentStorm.storm_id} />}
-              {activeTab === 'rescue' && <RescueTab onRescueClick={onRescueClick} stormId={currentStorm.storm_id} />}
-              {activeTab === 'damage' && <DamageTab stormId={currentStorm.storm_id} onDamageClick={onDamageClick} />}
+              {activeTab === 'news' && <NewsTab onNewsClick={onNewsClick} selectedNewsId={selectedNewsId} stormId={currentStorm?.storm_id} />}
+              {activeTab === 'rescue' && <RescueTab onRescueClick={onRescueClick} stormId={currentStorm?.storm_id} />}
+              {activeTab === 'damage' && <DamageTab stormId={currentStorm?.storm_id} onDamageClick={onDamageClick} />}
               {activeTab === 'chatbot' && <ChatbotTab />}
             </div>
 
