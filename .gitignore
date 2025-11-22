@@ -53,3 +53,6 @@ frontend/public/GFS_process/
 logs/
 __pycache__/
 *.pyc
+local_data/
+utils.py
+data_flow/

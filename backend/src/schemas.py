@@ -85,9 +85,8 @@ class NewsSourceCreate(BaseModel):
     published_at: str  # Format: "DD-MM-YYYY HH:MM"
     lat: Optional[float] = None
     lon: Optional[float] = None
-    fatalities: Optional[int] = None
-    injured: Optional[int] = None
-    damage_estimate: Optional[int] = None
+    thumbnail_url: Optional[str] = None
+    category: Optional[str] = None
 
 
 class NewsSourceUpdate(BaseModel):
@@ -97,9 +96,8 @@ class NewsSourceUpdate(BaseModel):
     published_at: Optional[str] = None  # Format: "DD-MM-YYYY HH:MM"
     lat: Optional[float] = None
     lon: Optional[float] = None
-    fatalities: Optional[int] = None
-    injured: Optional[int] = None
-    damage_estimate: Optional[int] = None
+    thumbnail_url: Optional[str] = None
+    category: Optional[str] = None
 
 
 class NewsSourceResponse(BaseModel):
@@ -113,9 +111,8 @@ class NewsSourceResponse(BaseModel):
     published_at: datetime
     lat: Optional[float] = None
     lon: Optional[float] = None
-    fatalities: Optional[int] = None
-    injured: Optional[int] = None
-    damage_estimate: Optional[int] = None
+    thumbnail_url: Optional[str] = None
+    category: Optional[str] = None
 
 
 # Request Models for Query Parameters

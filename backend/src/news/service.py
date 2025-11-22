@@ -31,9 +31,8 @@ class NewsSourceService:
             published_at=news_data["published_at"],
             lat=news_data.get("lat"),
             lon=news_data.get("lon"),
-            fatalities=news_data.get("fatalities"),
-            injured=news_data.get("injured"),
-            damage_estimate=news_data.get("damage_estimate")
+            thumbnail_url=news_data.get("thumbnail_url"),
+            category=news_data.get("category")
         )
         return result
     
@@ -89,9 +88,8 @@ class NewsSourceService:
             published_at=news_data.get("published_at"),
             lat=news_data.get("lat"),
             lon=news_data.get("lon"),
-            fatalities=news_data.get("fatalities"),
-            injured=news_data.get("injured"),
-            damage_estimate=news_data.get("damage_estimate")
+            thumbnail_url=news_data.get("thumbnail_url"),
+            category=news_data.get("category")
         )
         if not news:
             raise HTTPException(

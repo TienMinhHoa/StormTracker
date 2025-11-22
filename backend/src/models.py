@@ -67,9 +67,8 @@ class NewsSource(Base):
     published_at = Column(DateTime)
     lat = Column(Float)
     lon = Column(Float)
-    fatalities = Column(Integer)
-    injured = Column(Integer)
-    damage_estimate = Column(BigInteger)
+    thumbnail_url = Column(Text)
+    category = Column(Text)
 
     storm = relationship("Storm", back_populates="news")
     damage_assessment = relationship("DamageAssessment", back_populates="news", uselist=False)

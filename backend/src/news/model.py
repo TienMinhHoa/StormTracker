@@ -17,9 +17,8 @@ class NewsSourceTables:
         published_at: str,
         lat: Optional[float] = None,
         lon: Optional[float] = None,
-        fatalities: Optional[int] = None,
-        injured: Optional[int] = None,
-        damage_estimate: Optional[int] = None
+        thumbnail_url: Optional[str] = None,
+        category: Optional[str] = None
     ) -> NewsSourceDB:
         published_at_obj = datetime.strptime(published_at, "%d-%m-%Y %H:%M") if published_at else None
         
@@ -31,9 +30,8 @@ class NewsSourceTables:
             published_at=published_at_obj,
             lat=lat,
             lon=lon,
-            fatalities=fatalities,
-            injured=injured,
-            damage_estimate=damage_estimate
+            thumbnail_url=thumbnail_url,
+            category=category
         )
         session.add(new_news)
         await session.flush()
@@ -82,9 +80,8 @@ class NewsSourceTables:
         published_at: Optional[str] = None,
         lat: Optional[float] = None,
         lon: Optional[float] = None,
-        fatalities: Optional[int] = None,
-        injured: Optional[int] = None,
-        damage_estimate: Optional[int] = None
+        thumbnail_url: Optional[str] = None,
+        category: Optional[str] = None
     ) -> Optional[NewsSourceDB]:
         news = await self.get_news_by_id(session, news_id)
         if not news:
@@ -102,12 +99,10 @@ class NewsSourceTables:
             news.lat = lat
         if lon is not None:
             news.lon = lon
-        if fatalities is not None:
-            news.fatalities = fatalities
-        if injured is not None:
-            news.injured = injured
-        if damage_estimate is not None:
-            news.damage_estimate = damage_estimate
+        if thumbnail_url is not None:
+            news.thumbnail_url = thumbnail_url
+        if category is not None:
+            news.category = category
         
         await session.flush()
         await session.refresh(news)
