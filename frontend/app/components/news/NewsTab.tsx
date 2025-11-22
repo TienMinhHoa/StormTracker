@@ -3,22 +3,42 @@
 import { useState, useEffect } from 'react';
 import NewsDetail from './NewsDetail';
 import { NewsItem, newsItems } from './newsData';
+import { NewsSource, getNewsSources } from '../../data';
 
 const categories = ['All', 'Hurricane', 'Tornado', 'Flood', 'Storm', 'Warning', 'Wildfire'];
 
 type NewsTabProps = {
   onNewsClick?: (news: NewsItem) => void;
   selectedNewsId?: number | null;
+  stormId?: number;
 };
 
-export default function NewsTab({ onNewsClick, selectedNewsId }: NewsTabProps) {
+// Convert NewsSource to NewsItem format
+const convertNewsSourceToNewsItem = (newsSource: NewsSource): NewsItem => ({
+  id: newsSource.news_id,
+  title: newsSource.title,
+  image: `https://picsum.photos/400/300?random=${newsSource.news_id}`, // Consistent placeholder image per news item
+  coordinates: [newsSource.lon, newsSource.lat],
+  category: 'Storm', // Default category
+  date: new Date(newsSource.published_at).toLocaleDateString('vi-VN'),
+  author: 'Nguồn tin tức',
+  content: newsSource.content,
+  severity: newsSource.fatalities && newsSource.fatalities > 10 ? 'high' :
+           newsSource.injured && newsSource.injured > 20 ? 'medium' : 'low'
+});
+
+export default function NewsTab({ onNewsClick, selectedNewsId, stormId }: NewsTabProps) {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedNews, setSelectedNews] = useState<NewsItem | null>(null);
+
+  // Get news from mock data helpers (simulating API call)
+  const newsSources = stormId ? getNewsSources(stormId) : [];
+  const convertedNewsItems = newsSources.map(convertNewsSourceToNewsItem);
 
   // Update selectedNews when selectedNewsId changes (from marker click)
   useEffect(() => {
     if (selectedNewsId) {
-      const news = newsItems.find(item => item.id === selectedNewsId);
+      const news = convertedNewsItems.find(item => item.id === selectedNewsId);
       if (news) {
         setSelectedNews(news);
       }
@@ -36,8 +56,8 @@ export default function NewsTab({ onNewsClick, selectedNewsId }: NewsTabProps) {
 
   // Filter news by category
   const filteredNews = selectedCategory === 'All'
-    ? newsItems
-    : newsItems.filter(item => item.category === selectedCategory);
+    ? convertedNewsItems
+    : convertedNewsItems.filter(item => item.category === selectedCategory);
 
   // Show detail view if a news item is selected
   if (selectedNews) {

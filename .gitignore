@@ -44,3 +44,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+frontend/app/data/real_data/tracks.csv
+frontend/app/data/real_data/storms.csv
+frontend/public/GFS_process/

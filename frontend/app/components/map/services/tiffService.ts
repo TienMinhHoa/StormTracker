@@ -2,6 +2,67 @@
 
 import { fromUrl, fromBlob } from 'geotiff';
 
+// Interface cho timestamp data
+export interface WindTimestamp {
+  timestamp: string; // Format: "YYYY-MM-DD HH:MM"
+  uFile: string;
+  vFile: string;
+}
+
+// Danh sách các timestamp có sẵn trong thư mục GFS_process
+// Tất cả timestamps có sẵn trong thư mục GFS_process
+export const ALL_AVAILABLE_TIMESTAMPS: WindTimestamp[] = [
+  // 2025-11-20
+  { timestamp: "2025-11-20 15:00", uFile: "/GFS_process/U/2025/11/20/20251120_1500.tif", vFile: "/GFS_process/V/2025/11/20/20251120_1500.tif" },
+  { timestamp: "2025-11-20 16:00", uFile: "/GFS_process/U/2025/11/20/20251120_1600.tif", vFile: "/GFS_process/V/2025/11/20/20251120_1600.tif" },
+  { timestamp: "2025-11-20 17:00", uFile: "/GFS_process/U/2025/11/20/20251120_1700.tif", vFile: "/GFS_process/V/2025/11/20/20251120_1700.tif" },
+  { timestamp: "2025-11-20 18:00", uFile: "/GFS_process/U/2025/11/20/20251120_1800.tif", vFile: "/GFS_process/V/2025/11/20/20251120_1800.tif" },
+  { timestamp: "2025-11-20 19:00", uFile: "/GFS_process/U/2025/11/20/20251120_1900.tif", vFile: "/GFS_process/V/2025/11/20/20251120_1900.tif" },
+  { timestamp: "2025-11-20 20:00", uFile: "/GFS_process/U/2025/11/20/20251120_2000.tif", vFile: "/GFS_process/V/2025/11/20/20251120_2000.tif" },
+  { timestamp: "2025-11-20 21:00", uFile: "/GFS_process/U/2025/11/20/20251120_2100.tif", vFile: "/GFS_process/V/2025/11/20/20251120_2100.tif" },
+  { timestamp: "2025-11-20 22:00", uFile: "/GFS_process/U/2025/11/20/20251120_2200.tif", vFile: "/GFS_process/V/2025/11/20/20251120_2200.tif" },
+  { timestamp: "2025-11-20 23:00", uFile: "/GFS_process/U/2025/11/20/20251120_2300.tif", vFile: "/GFS_process/V/2025/11/20/20251120_2300.tif" },
+
+  // 2025-11-21
+  { timestamp: "2025-11-21 00:00", uFile: "/GFS_process/U/2025/11/21/20251121_000.tif", vFile: "/GFS_process/V/2025/11/21/20251121_000.tif" },
+  { timestamp: "2025-11-21 01:00", uFile: "/GFS_process/U/2025/11/21/20251121_100.tif", vFile: "/GFS_process/V/2025/11/21/20251121_100.tif" },
+  { timestamp: "2025-11-21 02:00", uFile: "/GFS_process/U/2025/11/21/20251121_200.tif", vFile: "/GFS_process/V/2025/11/21/20251121_200.tif" },
+  { timestamp: "2025-11-21 03:00", uFile: "/GFS_process/U/2025/11/21/20251121_300.tif", vFile: "/GFS_process/V/2025/11/21/20251121_300.tif" },
+];
+
+/**
+ * Tính toán khoảng thời gian hiển thị trên thanh thời gian
+ * - Thời gian cuối cùng: thời gian cuối cùng trong thư mục
+ * - Thời gian bắt đầu: trước đó 5 ngày, hoặc thời gian đầu tiên nếu khoảng cách < 5 ngày
+ */
+function calculateDisplayTimeRange(): WindTimestamp[] {
+  if (ALL_AVAILABLE_TIMESTAMPS.length === 0) return [];
+
+  const firstTimestamp = ALL_AVAILABLE_TIMESTAMPS[0];
+  const lastTimestamp = ALL_AVAILABLE_TIMESTAMPS[ALL_AVAILABLE_TIMESTAMPS.length - 1];
+
+  // Tính khoảng cách thời gian giữa đầu và cuối (tính bằng giờ)
+  const firstDate = new Date(firstTimestamp.timestamp.replace(' ', 'T'));
+  const lastDate = new Date(lastTimestamp.timestamp.replace(' ', 'T'));
+  const timeDiffHours = (lastDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60);
+
+  // Nếu khoảng cách < 5 ngày (120 giờ), hiển thị tất cả
+  if (timeDiffHours < 120) {
+    return ALL_AVAILABLE_TIMESTAMPS;
+  }
+
+  // Nếu khoảng cách >= 5 ngày, chỉ hiển thị từ thời gian cuối cùng trở về 5 ngày
+  const fiveDaysAgo = new Date(lastDate.getTime() - (5 * 24 * 60 * 60 * 1000));
+
+  return ALL_AVAILABLE_TIMESTAMPS.filter(timestamp => {
+    const timestampDate = new Date(timestamp.timestamp.replace(' ', 'T'));
+    return timestampDate >= fiveDaysAgo;
+  });
+}
+
+// Khoảng thời gian hiển thị trên thanh thời gian (được tính toán tự động)
+export const AVAILABLE_TIMESTAMPS: WindTimestamp[] = calculateDisplayTimeRange();
+
 export interface TIFFWindData {
   u: Float32Array; // U component (eastward wind)
   v: Float32Array; // V component (northward wind)
@@ -48,6 +109,50 @@ function normalizeBbox(bbox: [number, number, number, number]): [number, number,
   }
   
   return [west, south, east, north];
+}
+
+/**
+ * Load wind data cho một timestamp cụ thể từ thư mục GFS_process
+ */
+export async function loadWindDataForTimestamp(timestamp: string): Promise<TIFFWindData> {
+  const windTimestamp = AVAILABLE_TIMESTAMPS.find(t => t.timestamp === timestamp);
+  if (!windTimestamp) {
+    throw new Error(`Timestamp ${timestamp} not found in available data`);
+  }
+
+  return loadWindDataFromTIFF(windTimestamp.uFile, windTimestamp.vFile);
+}
+
+/**
+ * Get timestamp gần nhất với thời gian hiện tại
+ */
+export function getCurrentTimestamp(): string {
+  const now = new Date();
+  const currentHour = now.getHours();
+
+  // Tìm timestamp gần nhất
+  const timestamps = AVAILABLE_TIMESTAMPS.map(t => {
+    const [date, time] = t.timestamp.split(' ');
+    const [hours] = time.split(':');
+    return {
+      timestamp: t.timestamp,
+      hour: parseInt(hours)
+    };
+  });
+
+  // Tìm timestamp có giờ gần nhất
+  let closest = timestamps[0];
+  let minDiff = Math.abs(currentHour - closest.hour);
+
+  for (const ts of timestamps) {
+    const diff = Math.abs(currentHour - ts.hour);
+    if (diff < minDiff) {
+      minDiff = diff;
+      closest = ts;
+    }
+  }
+
+  return closest.timestamp;
 }
 
 /**
