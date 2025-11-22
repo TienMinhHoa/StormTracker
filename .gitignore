@@ -50,3 +50,6 @@ next-env.d.ts
 logs/
 __pycache__/
 *.pyc
+local_data/
+utils.py
+data_flow/
