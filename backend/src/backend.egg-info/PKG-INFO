@@ -1,0 +1,23 @@
+Metadata-Version: 2.4
+Name: backend
+Version: 0.1.0
+Summary: Add your description here
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+Requires-Dist: alembic>=1.17.2
+Requires-Dist: asyncpg>=0.30.0
+Requires-Dist: fastapi>=0.121.2
+Requires-Dist: firecrawl-py>=4.8.0
+Requires-Dist: geopy>=2.4.1
+Requires-Dist: google-generativeai>=0.8.3
+Requires-Dist: googlemaps>=4.10.0
+Requires-Dist: httpx>=0.28.1
+Requires-Dist: langchain-google-genai>=2.0.8
+Requires-Dist: langchain==0.3.27
+Requires-Dist: opencage>=3.2.0
+Requires-Dist: pandas>=2.3.3
+Requires-Dist: psycopg2-binary>=2.9.11
+Requires-Dist: pydantic-settings>=2.12.0
+Requires-Dist: serpapi>=0.1.5
+Requires-Dist: sqlalchemy>=2.0.44
+Requires-Dist: tqdm>=4.67.1
