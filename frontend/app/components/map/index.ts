@@ -3,6 +3,7 @@ export { default as MapControls } from './MapControls';
 export { default as MapInfo } from './MapInfo';
 export { default as WindLegend } from './WindLegend';
 export { default as WindLayer } from './WindLayer';
+export { default as WindParticlesLayer } from './WindParticlesLayer';
 export { default as ZoomControls } from './ZoomControls';
 export { default as LayerControls } from './LayerControls';
 export { default as StormTrackLayer } from './StormTrackLayer';

@@ -1,6 +1,7 @@
 'use client';
 
 import { NewsItem } from './newsData';
+import SafeBackgroundImage from '../common/SafeBackgroundImage';
 
 type NewsDetailProps = {
   news: NewsItem;
@@ -35,9 +36,9 @@ export default function NewsDetail({ news, onBack }: NewsDetailProps) {
 
       {/* Fixed Image */}
       <div className="flex-shrink-0 px-4 pt-4">
-        <div
+        <SafeBackgroundImage
+          src={news.image}
           className="w-full h-48 bg-cover bg-center bg-gray-800 rounded-xl shadow-lg"
-          style={{ backgroundImage: `url(${news.image})` }}
         />
       </div>
 
@@ -99,6 +100,23 @@ export default function NewsDetail({ news, onBack }: NewsDetailProps) {
             <div className="text-gray-300 text-sm leading-relaxed whitespace-pre-line">
               {news.content}
             </div>
+
+            {/* Source URL */}
+            {news.source_url && (
+              <div className="pt-4 border-t border-white/10">
+                <a
+                  href={news.source_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-[#137fec] hover:text-[#137fec]/80 transition-colors text-sm font-medium"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                  Xem nguồn gốc
+                </a>
+              </div>
+            )}
 
             {/* Actions */}
             <div className="pt-4 border-t border-white/10 flex gap-3">

@@ -71,10 +71,12 @@ const categoryIcons = {
 
 type RescueTabProps = {
   onRescueClick?: (rescue: RescueRequest) => void;
-  stormId?: number;
+  stormId?: string | number;
+  showRescueMarkers?: boolean;
+  onShowRescueMarkersChange?: (show: boolean) => void;
 };
 
-export default function RescueTab({ onRescueClick, stormId }: RescueTabProps) {
+export default function RescueTab({ onRescueClick, stormId, showRescueMarkers = true, onShowRescueMarkersChange }: RescueTabProps) {
   const [showForm, setShowForm] = useState(false);
   const [selectedUrgency, setSelectedUrgency] = useState<string>('all');
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -156,6 +158,28 @@ export default function RescueTab({ onRescueClick, stormId }: RescueTabProps) {
             ⚡ Trung bình
           </button>
         </div>
+
+        {/* Marker Toggle - Between filter and content */}
+        {onShowRescueMarkersChange && (
+          <div className="flex items-center justify-end -mx-4 px-4">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400">Hiển thị marker</span>
+              <button
+                onClick={() => onShowRescueMarkersChange(!showRescueMarkers)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  showRescueMarkers ? 'bg-[#137fec]' : 'bg-gray-600'
+                }`}
+                title={showRescueMarkers ? 'Ẩn marker' : 'Hiện marker'}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    showRescueMarkers ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Rescue Requests List */}
         <div className="flex flex-col gap-3">

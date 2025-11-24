@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { AVAILABLE_TIMESTAMPS, ALL_AVAILABLE_TIMESTAMPS } from './services/tiffService';
 import type { Storm } from '../../services/stormApi';
 
@@ -23,6 +23,8 @@ export default function TimeControls({
 }: TimeControlsProps) {
   const [playing, setPlaying] = useState(isPlaying);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const pendingIndexRef = useRef<number>(0);
 
   // Filter timestamps based on storm's date range
   const availableTimestamps = useMemo(() => {
@@ -109,12 +111,35 @@ export default function TimeControls({
 
   const handleSliderChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const index = parseInt(e.target.value);
+    pendingIndexRef.current = index;
+
+    if (!isDragging) {
+      // If not dragging (e.g., direct click), update immediately
     const timestamp = availableTimestamps[index]?.timestamp;
     if (timestamp) {
       setCurrentIndex(index);
       onTimestampChange?.(timestamp);
     }
-  }, [onTimestampChange, availableTimestamps]);
+    } else {
+      // If dragging, just update visual position without triggering change
+      setCurrentIndex(index);
+    }
+  }, [isDragging, onTimestampChange, availableTimestamps]);
+
+  const handleSliderMouseDown = useCallback(() => {
+    setIsDragging(true);
+  }, []);
+
+  const handleSliderMouseUp = useCallback(() => {
+    if (isDragging) {
+      setIsDragging(false);
+      // Apply the pending change when dragging ends
+      const timestamp = availableTimestamps[pendingIndexRef.current]?.timestamp;
+      if (timestamp) {
+        onTimestampChange?.(timestamp);
+      }
+    }
+  }, [isDragging, onTimestampChange, availableTimestamps]);
 
   const progressPercentage = availableTimestamps.length > 0 
     ? (currentIndex / (availableTimestamps.length - 1)) * 100 
@@ -160,6 +185,9 @@ export default function TimeControls({
                 max={Math.max(0, availableTimestamps.length - 1)}
                 value={currentIndex}
                 onChange={handleSliderChange}
+                onMouseDown={handleSliderMouseDown}
+                onMouseUp={handleSliderMouseUp}
+                onMouseLeave={handleSliderMouseUp}
                 className="w-full h-2 bg-gray-700/70 rounded-full appearance-none cursor-pointer
                        [&::-webkit-slider-thumb]:appearance-none
                        [&::-webkit-slider-thumb]:w-4
