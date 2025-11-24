@@ -124,3 +124,26 @@ class PaginationRequest(BaseModel):
 class TrackPaginationRequest(BaseModel):
     skip: int = Field(0, ge=0, description="Number of records to skip")
     limit: int = Field(1000, ge=1, le=5000, description="Maximum number of records to return")
+
+
+# DamageAssessment Schemas
+class DamageAssessmentCreate(BaseModel):
+    storm_id: str
+    detail: dict  # JSON chứa thông tin damage từ extract_damage_assesments.py
+    time: str  # Format: "DD-MM-YYYY HH:MM"
+
+
+class DamageAssessmentUpdate(BaseModel):
+    detail: Optional[dict] = None
+    time: Optional[str] = None  # Format: "DD-MM-YYYY HH:MM"
+
+
+class DamageAssessmentResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    storm_id: str
+    detail: dict
+    time: datetime
+    created_at: datetime
+    updated_at: datetime

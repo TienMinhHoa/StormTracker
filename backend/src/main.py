@@ -8,6 +8,7 @@ import socket
 
 from src.storms.router import router as storms_router
 from src.news.router import router as news_router
+from src.damage.router import router as damage_router
 
 from src.schemas import HealthResponse
 START_TIME = datetime.now(timezone.utc)
@@ -27,6 +28,7 @@ app = FastAPI(title=config.APP_NAME, lifespan=lifespan)
 
 app.include_router(storms_router)
 app.include_router(news_router)
+app.include_router(damage_router)
 
 
 @app.get(

@@ -71,7 +71,6 @@ class NewsSource(Base):
     category = Column(Text)
 
     storm = relationship("Storm", back_populates="news")
-    damage_assessment = relationship("DamageAssessment", back_populates="news", uselist=False)
 
 
 
@@ -120,16 +119,11 @@ class RescueRequest(Base):
 class DamageAssessment(Base):
     __tablename__ = "damage_assessment"
 
-    id = Column(Integer, primary_key=True)
-    storm_id = Column(String, ForeignKey("storms.storm_id"))
-    total_fatalities = Column(Integer)
-    total_injured = Column(Integer)
-    total_facilities = Column(Integer)
-    updated_at = Column(DateTime)
-    news_id = Column(Integer, ForeignKey("news_sources.news_id"))
-    lat = Column(Float)
-    lon = Column(Float)
-    time = Column(DateTime)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    storm_id = Column(String, ForeignKey("storms.storm_id"), nullable=False)
+    detail = Column(JSON, nullable=False)  # Chứa toàn bộ thông tin damage dạng JSON
+    time = Column(DateTime, nullable=False)  # Thời gian thu thập thông tin
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
     storm = relationship("Storm", back_populates="damage_assessments")
-    news = relationship("NewsSource", back_populates="damage_assessment")
