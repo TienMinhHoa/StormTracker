@@ -7,11 +7,13 @@ import TimeControls from './TimeControls';
 import ZoomControls from './ZoomControls';
 import WindLegend from './WindLegend';
 import WindLayer from './WindLayer';
+import WindParticlesLayer from './WindParticlesLayer';
 import StormTrackLayer from './StormTrackLayer';
 import MapInfo from './MapInfo';
 import { RescueRequest } from '../rescue';
 import { AVAILABLE_TIMESTAMPS } from './services/tiffService';
 import { getStormTracks, type Storm, type StormTrack } from '../../services/stormApi';
+import { getSafeImageUrl, DEFAULT_NEWS_IMAGE } from '../../utils/imageUtils';
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!;
 
@@ -22,9 +24,11 @@ type MapProps = {
   activeTab?: 'news' | 'rescue' | 'damage' | 'chatbot';
   onNewsClick?: (news: any) => void;
   selectedStorm?: Storm | null;
+  showNewsMarkers?: boolean;
+  showRescueMarkers?: boolean;
 };
 
-export default function Map({ onMapReady, rescueRequests = [], newsItems = [], activeTab = 'news', onNewsClick, selectedStorm }: MapProps) {
+export default function Map({ onMapReady, rescueRequests = [], newsItems = [], activeTab = 'news', onNewsClick, selectedStorm, showNewsMarkers = true, showRescueMarkers = true }: MapProps) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const marker = useRef<mapboxgl.Marker | null>(null);
@@ -43,6 +47,9 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
   const [windData, setWindData] = useState<any>(null);
   const [mapReady, setMapReady] = useState(false);
   
+  // Wind animation state - controlled by toggle
+  const [windAnimationEnabled, setWindAnimationEnabled] = useState(false);
+  
   // Storm tracks state
   const [stormTracks, setStormTracks] = useState<StormTrack[]>([]);
   const [loadingTracks, setLoadingTracks] = useState(false);
@@ -54,11 +61,17 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
     }
   }, []);
 
-  // Load storm tracks when selectedStorm changes
+  // Load storm tracks when selectedStorm changes or map becomes ready
   useEffect(() => {
     const loadTracks = async () => {
       if (!selectedStorm?.storm_id) {
         setStormTracks([]);
+        return;
+      }
+
+      // Wait for map to be ready before loading tracks
+      if (!mapReady || !map.current) {
+        console.log('⏳ Waiting for map to be ready before loading tracks...');
         return;
       }
 
@@ -77,7 +90,7 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
     };
 
     loadTracks();
-  }, [selectedStorm]);
+  }, [selectedStorm, mapReady]);
 
   // Storm track always enabled
   const stormTrackEnabled = false; // Temporarily disabled due to timing issues
@@ -166,11 +179,15 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
     newsMarkers.current.forEach((m) => m.remove());
     newsMarkers.current = [];
 
-    // Only create markers if news tab is active
-    if (activeTab !== 'news') return;
+    // Only create markers if news tab is active and showNewsMarkers is enabled
+    if (activeTab !== 'news' || !showNewsMarkers) return;
 
     // Category color mapping
     const categoryColors: Record<string, string> = {
+      'Dự báo & Cảnh báo': '#eab308', // Yellow for warnings/forecasts
+      'Hỗ trợ & Cứu trợ': '#2563eb', // Blue for rescue/support
+      'Thiệt hại & Hậu quả': '#dc2626', // Red for damage
+      // Fallback for old categories
       Hurricane: '#dc2626',
       Tornado: '#ea580c',
       Flood: '#2563eb',
@@ -183,24 +200,29 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
     newsItems.forEach((news) => {
       const [lng, lat] = news.coordinates;
       const color = categoryColors[news.category] || '#6b7280';
+      const safeImageUrl = getSafeImageUrl(news.image);
 
-      // Create custom marker element - single style for all news
+      // Create custom marker element with thumbnail image
       const el = document.createElement('div');
       el.className = 'news-marker';
-      el.style.width = '32px';
-      el.style.height = '32px';
+      el.style.width = '48px';
+      el.style.height = '48px';
       el.style.borderRadius = '50%';
-      el.style.backgroundColor = '#3b82f6'; // Blue color for all news
       el.style.border = '3px solid white';
       el.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.3)';
       el.style.cursor = 'pointer';
-      el.style.display = 'flex';
-      el.style.alignItems = 'center';
-      el.style.justifyContent = 'center';
-      el.style.fontWeight = 'bold';
-      el.style.color = 'white';
-      el.style.fontSize = '16px';
-      el.innerHTML = '📰';
+      el.style.overflow = 'hidden';
+      el.style.backgroundImage = `url(${safeImageUrl})`;
+      el.style.backgroundSize = 'cover';
+      el.style.backgroundPosition = 'center';
+      el.style.backgroundRepeat = 'no-repeat';
+      
+      // Handle image load error for marker background
+      const markerImg = new Image();
+      markerImg.onerror = () => {
+        el.style.backgroundImage = `url(${DEFAULT_NEWS_IMAGE})`;
+      };
+      markerImg.src = safeImageUrl;
 
       // Create popup with news info
       const popup = new mapboxgl.Popup({ 
@@ -209,7 +231,7 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
         className: 'news-popup'
       }).setHTML(`
         <div style="padding: 0; width: 250px; overflow: hidden;">
-          <img src="${news.image}" alt="${news.title}" style="width: 100%; height: 120px; object-fit: cover; display: block;" />
+          <img src="${safeImageUrl}" alt="${news.title}" style="width: 100%; height: 120px; object-fit: cover; display: block;" onerror="this.src='${DEFAULT_NEWS_IMAGE}'" />
           <div style="padding: 12px;">
             <span style="display: inline-block; padding: 4px 10px; background: ${color}; color: white; border-radius: 12px; font-size: 11px; font-weight: bold; margin-bottom: 8px;">
               ${news.category}
@@ -243,7 +265,7 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
 
       newsMarkers.current.push(newsMarker);
     });
-  }, [newsItems, activeTab]);
+  }, [newsItems, activeTab, showNewsMarkers]);
 
   // Add rescue markers
   useEffect(() => {
@@ -253,8 +275,8 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
     rescueMarkers.current.forEach((m) => m.remove());
     rescueMarkers.current = [];
 
-    // Only create markers if rescue tab is active
-    if (activeTab !== 'rescue') return;
+    // Only create markers if rescue tab is active and showRescueMarkers is enabled
+    if (activeTab !== 'rescue' || !showRescueMarkers) return;
 
     // Add rescue markers
     rescueRequests.forEach((rescue) => {
@@ -330,7 +352,7 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
 
       rescueMarkers.current.push(rescueMarker);
     });
-  }, [rescueRequests, activeTab]);
+  }, [rescueRequests, activeTab, showRescueMarkers]);
 
   // Zoom controls callbacks
   const handleZoomIn = useCallback(() => {
@@ -366,8 +388,8 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
   }, []);
 
   const handleWindAnimationToggle = useCallback((enabled: boolean) => {
-    console.log('Wind animation toggled:', enabled);
-    // TODO: Implement wind animation layer
+    console.log('🌀 Wind animation toggled:', enabled);
+    setWindAnimationEnabled(enabled);
   }, []);
 
   return (
@@ -383,6 +405,17 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
         onLoadingChange={setWindLoading}
         onDataLoaded={setWindData}
       />
+
+      {/* Wind Particles Layer - Custom WebGL implementation (Windy.com style) */}
+      {/* TEMPORARILY DISABLED - Will implement later */}
+      {/* {windAnimationEnabled && (
+        <WindParticlesLayer
+          map={map.current}
+          enabled={windAnimationEnabled}
+          timestamp={windTimestamp}
+          opacity={0.9}
+        />
+      )} */}
 
       {/* Storm Track Layer (new visualization with pulse animation) */}
       {mapReady && (

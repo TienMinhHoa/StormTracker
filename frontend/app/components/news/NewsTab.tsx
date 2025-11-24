@@ -2,48 +2,90 @@
 
 import { useState, useEffect } from 'react';
 import NewsDetail from './NewsDetail';
-import { NewsItem, newsItems } from './newsData';
-import { NewsSource, getNewsSources } from '../../data';
+import { NewsItem } from './newsData';
+import { getNewsByStorm, type News } from '../../services/newsApi';
+import SafeBackgroundImage from '../common/SafeBackgroundImage';
 
-const categories = ['All', 'Hurricane', 'Tornado', 'Flood', 'Storm', 'Warning', 'Wildfire'];
+// Category mapping from API to display names
+const categoryDisplayNames: Record<string, string> = {
+  'Du_bao_Canh_bao_bao': 'Dự báo & Cảnh báo',
+  'Ho_tro_Cuu_tro': 'Hỗ trợ & Cứu trợ',
+  'Thiet_hai_Hau_qua': 'Thiệt hại & Hậu quả',
+};
+
+const categories = ['All', 'Du_bao_Canh_bao_bao', 'Ho_tro_Cuu_tro', 'Thiet_hai_Hau_qua'];
 
 type NewsTabProps = {
   onNewsClick?: (news: NewsItem) => void;
   selectedNewsId?: number | null;
-  stormId?: number;
+  stormId?: string;
+  showNewsMarkers?: boolean;
+  onShowNewsMarkersChange?: (show: boolean) => void;
 };
 
-// Convert NewsSource to NewsItem format
-const convertNewsSourceToNewsItem = (newsSource: NewsSource): NewsItem => ({
-  id: newsSource.news_id,
-  title: newsSource.title,
-  image: `https://picsum.photos/400/300?random=${newsSource.news_id}`, // Consistent placeholder image per news item
-  coordinates: [newsSource.lon, newsSource.lat],
-  category: 'Storm', // Default category
-  date: new Date(newsSource.published_at).toLocaleDateString('vi-VN'),
+// Convert API News to NewsItem format
+const convertNewsToNewsItem = (news: News): NewsItem => ({
+  id: news.news_id,
+  title: news.title,
+  image: news.thumbnail_url || `https://picsum.photos/400/300?random=${news.news_id}`,
+  coordinates: [news.lon, news.lat],
+  category: categoryDisplayNames[news.category] || news.category,
+  date: new Date(news.published_at).toLocaleDateString('vi-VN', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  }),
   author: 'Nguồn tin tức',
-  content: newsSource.content,
-  severity: newsSource.fatalities && newsSource.fatalities > 10 ? 'high' :
-           newsSource.injured && newsSource.injured > 20 ? 'medium' : 'low'
+  content: news.content,
+  source_url: news.source_url,
 });
 
-export default function NewsTab({ onNewsClick, selectedNewsId, stormId }: NewsTabProps) {
+export default function NewsTab({ onNewsClick, selectedNewsId, stormId, showNewsMarkers = true, onShowNewsMarkersChange }: NewsTabProps) {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedNews, setSelectedNews] = useState<NewsItem | null>(null);
+  const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Get news from mock data helpers (simulating API call)
-  const newsSources = stormId ? getNewsSources(stormId) : [];
-  const convertedNewsItems = newsSources.map(convertNewsSourceToNewsItem);
+  // Fetch news from API when stormId changes
+  useEffect(() => {
+    const fetchNews = async () => {
+      if (!stormId) {
+        setNewsItems([]);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError(null);
+        console.log(`📰 Fetching news for storm: ${stormId}`);
+        const newsData = await getNewsByStorm(stormId, 0, 100);
+        const converted = newsData.map(convertNewsToNewsItem);
+        setNewsItems(converted);
+        console.log(`✅ Loaded ${converted.length} news items`);
+      } catch (err) {
+        console.error('❌ Failed to load news:', err);
+        setError('Không thể tải tin tức. Vui lòng thử lại sau.');
+        setNewsItems([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchNews();
+  }, [stormId]);
 
   // Update selectedNews when selectedNewsId changes (from marker click)
   useEffect(() => {
-    if (selectedNewsId) {
-      const news = convertedNewsItems.find(item => item.id === selectedNewsId);
+    if (selectedNewsId && newsItems.length > 0) {
+      const news = newsItems.find(item => item.id === selectedNewsId);
       if (news) {
         setSelectedNews(news);
       }
     }
-  }, [selectedNewsId]);
+  }, [selectedNewsId, newsItems]);
 
   const handleNewsClick = (news: NewsItem) => {
     setSelectedNews(news);
@@ -56,8 +98,14 @@ export default function NewsTab({ onNewsClick, selectedNewsId, stormId }: NewsTa
 
   // Filter news by category
   const filteredNews = selectedCategory === 'All'
-    ? convertedNewsItems
-    : convertedNewsItems.filter(item => item.category === selectedCategory);
+    ? newsItems
+    : newsItems.filter(item => {
+        // Map display name back to API category for filtering
+        const apiCategory = Object.keys(categoryDisplayNames).find(
+          key => categoryDisplayNames[key] === item.category
+        ) || item.category;
+        return apiCategory === selectedCategory;
+      });
 
   // Show detail view if a news item is selected
   if (selectedNews) {
@@ -80,30 +128,79 @@ export default function NewsTab({ onNewsClick, selectedNewsId, stormId }: NewsTa
                     : 'bg-gray-700/60 text-gray-300 hover:bg-gray-700'
                   }`}
               >
-                {category}
+                {category === 'All' ? 'Tất cả' : categoryDisplayNames[category] || category}
               </button>
             ))}
           </div>
 
-          {/* News Grid */}
-          <div className="grid grid-cols-2 gap-4">
-            {filteredNews.map((item) => (
-              <div key={item.id} className="flex flex-col gap-2">
+          {/* Marker Toggle - Between category and content */}
+          {onShowNewsMarkersChange && (
+            <div className="flex items-center justify-end -mx-4 px-4">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-400">Hiển thị marker</span>
                 <button
-                  onClick={() => handleNewsClick(item)}
-                  className="block group w-full text-left"
+                  onClick={() => onShowNewsMarkersChange(!showNewsMarkers)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    showNewsMarkers ? 'bg-[#137fec]' : 'bg-gray-600'
+                  }`}
+                  title={showNewsMarkers ? 'Ẩn marker' : 'Hiện marker'}
                 >
-                  <div
-                    className="aspect-video w-full rounded-lg bg-cover bg-center bg-gray-800 group-hover:opacity-80 transition-opacity"
-                    style={{ backgroundImage: `url(${item.image})` }}
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      showNewsMarkers ? 'translate-x-6' : 'translate-x-1'
+                    }`}
                   />
                 </button>
-                <h3 className="text-sm font-medium leading-snug text-white">
-                  {item.title}
-                </h3>
               </div>
-            ))}
-          </div>
+            </div>
+          )}
+
+          {/* Loading State */}
+          {loading && (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-gray-400 text-sm">Đang tải tin tức...</div>
+            </div>
+          )}
+
+          {/* Error State */}
+          {error && (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-red-400 text-sm">{error}</div>
+            </div>
+          )}
+
+          {/* News Grid */}
+          {!loading && !error && (
+            filteredNews.length === 0 ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="text-gray-400 text-sm">Không có tin tức nào</div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-4">
+                {filteredNews.map((item) => (
+                  <div key={item.id} className="flex flex-col gap-2">
+                    <button
+                      onClick={() => handleNewsClick(item)}
+                      className="block group w-full text-left"
+                    >
+                      <SafeBackgroundImage
+                        src={item.image}
+                        className="aspect-video w-full rounded-lg bg-cover bg-center bg-gray-800 group-hover:opacity-80 transition-opacity"
+                      />
+                    </button>
+                    <button
+                      onClick={() => handleNewsClick(item)}
+                      className="text-left group"
+                    >
+                      <h3 className="text-sm font-medium leading-snug text-white group-hover:text-[#137fec] transition-colors">
+                        {item.title}
+                      </h3>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )
+          )}
         </div>
       </div>
     </div>

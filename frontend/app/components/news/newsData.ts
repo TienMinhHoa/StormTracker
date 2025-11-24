@@ -1,12 +1,13 @@
 export type NewsItem = {
   id: number;
   title: string;
-  image: string;
+  image: string; // thumbnail_url from API
   coordinates: [number, number]; // [longitude, latitude]
   category: string;
   date: string;
   author: string;
   content: string;
+  source_url?: string; // URL to original news source
   severity?: 'high' | 'medium' | 'low'; // For warnings
   duration?: string; // For warnings
 };

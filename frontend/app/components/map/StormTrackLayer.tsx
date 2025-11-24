@@ -282,11 +282,13 @@ export default function StormTrackLayer({
         if (map.getLayer(labelsLayerId)) map.removeLayer(labelsLayerId);
         if (map.getLayer(pointsLayerId)) map.removeLayer(pointsLayerId);
         if (map.getLayer(conesLayerId)) map.removeLayer(conesLayerId);
-        if (map.getLayer(overallConeLayerId)) map.removeLayer(overallConeLayerId);
+        // Removed: overallConeLayerId - no longer used per user request
+        // if (map.getLayer(overallConeLayerId)) map.removeLayer(overallConeLayerId);
         if (map.getLayer(forecastLineLayerId)) map.removeLayer(forecastLineLayerId);
         if (map.getLayer(pastLineLayerId)) map.removeLayer(pastLineLayerId);
         if (map.getSource(conesSourceId)) map.removeSource(conesSourceId);
-        if (map.getSource(overallConeSourceId)) map.removeSource(overallConeSourceId);
+        // Removed: overallConeSourceId - no longer used per user request
+        // if (map.getSource(overallConeSourceId)) map.removeSource(overallConeSourceId);
         if (map.getSource(pointsSourceId)) map.removeSource(pointsSourceId);
         if (map.getSource(forecastLineSourceId)) map.removeSource(forecastLineSourceId);
         if (map.getSource(pastLineSourceId)) map.removeSource(pastLineSourceId);
@@ -329,15 +331,20 @@ export default function StormTrackLayer({
           data: conesData as any
         });
 
-        // Add overall cone source (if available)
+        // Add overall cone source (if available) - REMOVED per user request
+        // User wants to keep only white circles, remove green layer underneath
+        /*
         if (overallConeData) {
           map.addSource(overallConeSourceId, {
             type: 'geojson',
             data: overallConeData as any
           });
         }
+        */
 
-        // 1. Add overall forecast cone (green shaded area) - Bottom layer
+        // 1. Add overall forecast cone (green shaded area) - REMOVED per user request
+        // User wants to keep only white circles, remove green layer underneath
+        /*
         if (overallConeData && map.getSource(overallConeSourceId)) {
           map.addLayer({
             id: overallConeLayerId,
@@ -350,6 +357,7 @@ export default function StormTrackLayer({
           });
           console.log('✅ Added overall cone layer');
         }
+        */
 
         // 2. Add past track line (black)
         map.addLayer({
@@ -500,11 +508,13 @@ export default function StormTrackLayer({
         if (map.getLayer(labelsLayerId)) map.removeLayer(labelsLayerId);
         if (map.getLayer(pointsLayerId)) map.removeLayer(pointsLayerId);
         if (map.getLayer(conesLayerId)) map.removeLayer(conesLayerId);
-        if (map.getLayer(overallConeLayerId)) map.removeLayer(overallConeLayerId);
+        // Removed: overallConeLayerId - no longer used per user request
+        // if (map.getLayer(overallConeLayerId)) map.removeLayer(overallConeLayerId);
         if (map.getLayer(forecastLineLayerId)) map.removeLayer(forecastLineLayerId);
         if (map.getLayer(pastLineLayerId)) map.removeLayer(pastLineLayerId);
         if (map.getSource(conesSourceId)) map.removeSource(conesSourceId);
-        if (map.getSource(overallConeSourceId)) map.removeSource(overallConeSourceId);
+        // Removed: overallConeSourceId - no longer used per user request
+        // if (map.getSource(overallConeSourceId)) map.removeSource(overallConeSourceId);
         if (map.getSource(pointsSourceId)) map.removeSource(pointsSourceId);
         if (map.getSource(forecastLineSourceId)) map.removeSource(forecastLineSourceId);
         if (map.getSource(pastLineSourceId)) map.removeSource(pastLineSourceId);

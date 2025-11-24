@@ -5,9 +5,12 @@ import { NewsTab, NewsItem } from '../news';
 import { RescueTab, RescueRequest } from '../rescue';
 import { ChatbotTab } from '../chatbot';
 import { DamageTab } from '../damage';
+import { SettingsPanel } from '../settings';
 import { getStorms, type Storm } from '../../services/stormApi';
 
 type Tab = 'news' | 'rescue' | 'damage' | 'chatbot';
+
+type Tab = 'news' | 'rescue' | 'damage' | 'chatbot' | 'settings';
 
 type SidebarProps = {
   onNewsClick?: (news: NewsItem) => void;
@@ -17,6 +20,10 @@ type SidebarProps = {
   onStormChange?: (storm: Storm) => void;
   selectedNewsId?: number | null;
   selectedStorm?: Storm | null;
+  showNewsMarkers?: boolean;
+  onShowNewsMarkersChange?: (show: boolean) => void;
+  showRescueMarkers?: boolean;
+  onShowRescueMarkersChange?: (show: boolean) => void;
 };
 
 export default function Sidebar({
@@ -26,9 +33,13 @@ export default function Sidebar({
   onTabChange,
   onStormChange,
   selectedNewsId,
-  selectedStorm
+  selectedStorm,
+  showNewsMarkers = true,
+  onShowNewsMarkersChange,
+  showRescueMarkers = true,
+  onShowRescueMarkersChange
 }: SidebarProps) {
-  const [activeTab, setActiveTab] = useState<Tab>('news');
+  const [activeTab, setActiveTab] = useState<'news' | 'rescue' | 'damage' | 'chatbot' | 'settings'>('news');
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [storms, setStorms] = useState<Storm[]>([]);
   const [loadingStorms, setLoadingStorms] = useState(true);
@@ -42,10 +53,12 @@ export default function Sidebar({
         const stormsData = await getStorms(0, 100);
         setStorms(stormsData);
         
-        // Select first storm by default if available
-        if (stormsData.length > 0 && !selectedStorm) {
-          setSelectedStormLocal(stormsData[0]);
-          onStormChange?.(stormsData[0]);
+        // Select first storm by default if available and no storm is currently selected
+        if (stormsData.length > 0 && !selectedStorm && !selectedStormLocal) {
+          const firstStorm = stormsData[0];
+          setSelectedStormLocal(firstStorm);
+          onStormChange?.(firstStorm);
+          console.log('🌪️ Auto-selected first storm:', firstStorm.name);
         }
       } catch (error) {
         console.error('❌ Failed to load storms:', error);
@@ -180,7 +193,7 @@ export default function Sidebar({
                       : 'text-gray-400 hover:text-gray-300'
                     }`}
                 >
-                  📰 News
+                  Tin tức
                 </button>
                 <button
                   onClick={() => handleTabChange('rescue')}
@@ -189,7 +202,7 @@ export default function Sidebar({
                       : 'text-gray-400 hover:text-gray-300'
                     }`}
                 >
-                  🚨 Cứu hộ
+                  Cứu hộ
                 </button>
                 <button
                   onClick={() => handleTabChange('damage')}
@@ -198,7 +211,7 @@ export default function Sidebar({
                       : 'text-gray-400 hover:text-gray-300'
                     }`}
                 >
-                  🏗️ Thiệt hại
+                  Thiệt hại
                 </button>
                 <button
                   onClick={() => handleTabChange('chatbot')}
@@ -214,17 +227,39 @@ export default function Sidebar({
 
             {/* Tab Content */}
             <div className="flex-1 overflow-hidden flex flex-col">
-              {activeTab === 'news' && <NewsTab onNewsClick={onNewsClick} selectedNewsId={selectedNewsId} stormId={currentStorm?.storm_id} />}
-              {activeTab === 'rescue' && <RescueTab onRescueClick={onRescueClick} stormId={currentStorm?.storm_id} />}
+              {activeTab === 'news' && (
+                <NewsTab 
+                  onNewsClick={onNewsClick} 
+                  selectedNewsId={selectedNewsId} 
+                  stormId={currentStorm?.storm_id}
+                  showNewsMarkers={showNewsMarkers}
+                  onShowNewsMarkersChange={onShowNewsMarkersChange}
+                />
+              )}
+              {activeTab === 'rescue' && (
+                <RescueTab 
+                  onRescueClick={onRescueClick} 
+                  stormId={currentStorm?.storm_id}
+                  showRescueMarkers={showRescueMarkers}
+                  onShowRescueMarkersChange={onShowRescueMarkersChange}
+                />
+              )}
               {activeTab === 'damage' && <DamageTab stormId={currentStorm?.storm_id} onDamageClick={onDamageClick} />}
               {activeTab === 'chatbot' && <ChatbotTab />}
+              {activeTab === 'settings' && (
+                <SettingsPanel
+                  showNewsMarkers={showNewsMarkers}
+                  onShowNewsMarkersChange={onShowNewsMarkersChange || (() => {})}
+                  onClose={() => setActiveTab('news')}
+                />
+              )}
             </div>
 
             {/* Footer */}
             <div className="p-4 border-t border-white/10">
-              <a
-                href="#"
-                className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/5 transition-colors"
+              <button
+                onClick={() => setActiveTab('settings')}
+                className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/5 transition-colors w-full text-left"
               >
                 <svg
                   className="w-5 h-5 text-gray-300"
@@ -245,8 +280,8 @@ export default function Sidebar({
                     d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
                   />
                 </svg>
-                <p className="text-white text-sm font-medium">Settings</p>
-              </a>
+                <p className="text-white text-sm font-medium">Cài đặt</p>
+              </button>
             </div>
           </>
         )}

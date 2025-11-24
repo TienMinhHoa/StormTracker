@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Clean config - no polyfills needed with custom WebGL renderer
 };
 
 export default nextConfig;
