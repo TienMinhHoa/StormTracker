@@ -118,7 +118,7 @@ export default function NewsTab({ onNewsClick, selectedNewsId, stormId, showNews
       <div className="px-4 py-4">
         <div className="flex flex-col gap-4">
           {/* Category Pills */}
-          <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 no-scrollbar">
+          <div className="flex gap-2 overflow-x-scroll overflow-y-hidden pb-2 -mx-4 px-4">
             {categories.map((category) => (
               <button
                 key={category}

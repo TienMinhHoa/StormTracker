@@ -56,8 +56,8 @@ export default function DamageTab({ stormId, onDamageClick }: DamageTabProps) {
     return num.toLocaleString('vi-VN');
   };
 
-  const getSeverityColor = (deaths: number | null, missing: number | null, injured: number | null) => {
-    const totalAffected = (deaths || 0) + (missing || 0) + (injured || 0);
+  const getSeverityColor = (deaths: number | null, injured: number | null) => {
+    const totalAffected = (deaths || 0) + (injured || 0);
     if (totalAffected >= 50) return { bg: 'bg-red-500/10', border: 'border-red-500', text: 'text-red-400', icon: '🔴' };
     if (totalAffected >= 25) return { bg: 'bg-orange-500/10', border: 'border-orange-500', text: 'text-orange-400', icon: '🟠' };
     if (totalAffected >= 10) return { bg: 'bg-yellow-500/10', border: 'border-yellow-500', text: 'text-yellow-400', icon: '🟡' };
@@ -67,7 +67,7 @@ export default function DamageTab({ stormId, onDamageClick }: DamageTabProps) {
   // Calculate totals from latest damage assessment
   const latestDamage = damageData.length > 0 ? damageData[0] : null;
   const totalDeaths = latestDamage?.detail.casualties.deaths || 0;
-  const totalMissing = latestDamage?.detail.casualties.missing || 0;
+  // removed missing-persons summary per request
   const totalInjured = latestDamage?.detail.casualties.injured || 0;
   const totalEconomicLoss = latestDamage?.detail.total_economic_loss_vnd || 0;
 
@@ -91,14 +91,10 @@ export default function DamageTab({ stormId, onDamageClick }: DamageTabProps) {
             <h2 className="text-lg font-bold text-white mb-3">📊 Tổng quan thiệt hại</h2>
             
             {/* Casualties Summary */}
-            <div className="grid grid-cols-3 gap-3 text-center">
+              <div className="grid grid-cols-2 gap-3 text-center">
               <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
                 <div className="text-2xl font-bold text-red-400">{formatNumber(totalDeaths)}</div>
                 <div className="text-xs text-gray-400">💀 Tử vong</div>
-              </div>
-              <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3">
-                <div className="text-2xl font-bold text-yellow-400">{formatNumber(totalMissing)}</div>
-                <div className="text-xs text-gray-400">❓ Mất tích</div>
               </div>
               <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-3">
                 <div className="text-2xl font-bold text-orange-400">{formatNumber(totalInjured)}</div>
@@ -129,11 +125,7 @@ export default function DamageTab({ stormId, onDamageClick }: DamageTabProps) {
             if (!damage || !damage.detail) return null;
             
             const { casualties, property, infrastructure, agriculture } = damage.detail;
-            const colors = getSeverityColor(
-              casualties.deaths || 0,
-              casualties.injured || 0,
-              casualties.missing || 0
-            );
+            const colors = getSeverityColor(casualties.deaths || 0, casualties.injured || 0);
             const isExpanded = expandedId === damage.id;
 
             return (
@@ -164,11 +156,6 @@ export default function DamageTab({ stormId, onDamageClick }: DamageTabProps) {
                     {(casualties.deaths ?? 0) > 0 && (
                       <span className="flex items-center gap-1 text-red-400">
                         💀 {casualties.deaths}
-                      </span>
-                    )}
-                    {(casualties.missing ?? 0) > 0 && (
-                      <span className="flex items-center gap-1 text-yellow-400">
-                        ❓ {casualties.missing}
                       </span>
                     )}
                     {(casualties.injured ?? 0) > 0 && (

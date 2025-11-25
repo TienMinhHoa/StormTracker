@@ -304,93 +304,66 @@ export default function WindLayer({
       console.log('🗺️ Adding/updating map layer...');
 
       if (map.getSource('wind-layer')) {
-        console.log('🔄 Overlay new layer on top of old layer');
+        // Prefer in-place update of the Image source to avoid reloading the style
         try {
-          // Tạo layer mới với ID tạm thời, đè lên layer cũ
-          const tempSourceId = 'wind-layer-new';
-          const tempLayerId = 'wind-raster-layer-new';
-          
-          // Remove temp if exists from previous update
-          if (map.getLayer(tempLayerId)) {
-            map.removeLayer(tempLayerId);
-          }
-          if (map.getSource(tempSourceId)) {
-            map.removeSource(tempSourceId);
-          }
-          
-          // Add NEW layer with new data (full opacity) ON TOP
-          map.addSource(tempSourceId, {
-            type: 'image',
-            url: dataUrl,
-            coordinates: coordinates
-          });
-          
-          map.addLayer({
-            id: tempLayerId,
-            type: 'raster',
-            source: tempSourceId,
-            paint: {
-              'raster-opacity': opacity,
-              'raster-fade-duration': 0
-            }
-          }); // Add on top (no beforeId)
-          
-          console.log('✅ New layer rendered on top');
-          
-          // Đợi 1 frame để đảm bảo layer mới đã render
-          requestAnimationFrame(() => {
+          const source = map.getSource('wind-layer') as mapboxgl.ImageSource;
+          // Update image URL + coordinates in-place. This should avoid flicker.
+          source.updateImage({ url: dataUrl, coordinates });
+
+          // Ensure the raster layer exists and set opacity
+          if (!map.getLayer('wind-raster-layer')) {
+            map.addLayer({
+              id: 'wind-raster-layer',
+              type: 'raster',
+              source: 'wind-layer',
+              paint: {
+                'raster-opacity': opacity,
+                'raster-fade-duration': 0
+              }
+            }, 'wind-country-boundaries');
+          } else {
             try {
-              // Xóa layer CŨ (layer mới đã che phủ)
-              if (map.getLayer('wind-raster-layer')) {
-                map.removeLayer('wind-raster-layer');
-                console.log('🗑️ Removed old layer');
-              }
-              if (map.getSource('wind-layer')) {
-                map.removeSource('wind-layer');
-                console.log('🗑️ Removed old source');
-              }
-              
-              // Swap tên: new → main
-              // Bước 1: Xóa layer NEW trước (vì layer đang dùng source)
-              if (map.getLayer(tempLayerId)) {
-                map.removeLayer(tempLayerId);
-                console.log('🗑️ Removed temp layer');
-              }
-              
-              // Bước 2: Xóa source NEW
-              if (map.getSource(tempSourceId)) {
-                map.removeSource(tempSourceId);
-                console.log('🗑️ Removed temp source');
-              }
-              
-              // Bước 3: Tạo lại source và layer với tên chính
-              map.addSource('wind-layer', {
-                type: 'image',
-                url: dataUrl,
-                coordinates: coordinates
-              });
-              
-              map.addLayer({
-                id: 'wind-raster-layer',
-                type: 'raster',
-                source: 'wind-layer',
-                paint: {
-                  'raster-opacity': opacity,
-                  'raster-fade-duration': 0
-                }
-              }, 'wind-country-boundaries'); // Insert before boundaries
-              
-              console.log(`✅ Layer swap complete (no flicker)`);
-              setLayerReady(true);
+              map.setPaintProperty('wind-raster-layer', 'raster-opacity', opacity);
             } catch (err) {
-              console.error('❌ Error during layer swap:', err);
-              setLayerReady(false);
+              // ignore paint property error
             }
-          });
-          
-        } catch (error) {
-          console.error('❌ Error updating wind layer:', error);
-          setLayerReady(false);
+          }
+
+          console.log('✅ Updated existing wind-layer image in-place (no recreate)');
+          setLayerReady(true);
+        } catch (err) {
+          console.warn('⚠️ Failed to update image source in-place, falling back to recreate:', err);
+          // Fallback: remove and recreate the source/layer (keeps old behavior as safety)
+          try {
+            if (map.getLayer('wind-raster-layer')) {
+              map.removeLayer('wind-raster-layer');
+            }
+            if (map.getSource('wind-layer')) {
+              map.removeSource('wind-layer');
+            }
+
+            map.addSource('wind-layer', {
+              type: 'image',
+              url: dataUrl,
+              coordinates: coordinates
+            });
+
+            map.addLayer({
+              id: 'wind-raster-layer',
+              type: 'raster',
+              source: 'wind-layer',
+              paint: {
+                'raster-opacity': opacity,
+                'raster-fade-duration': 0
+              }
+            }, 'wind-country-boundaries');
+
+            console.log('✅ Recreated wind layer as fallback');
+            setLayerReady(true);
+          } catch (recreateErr) {
+            console.error('❌ Error recreating wind layer as fallback:', recreateErr);
+            setLayerReady(false);
+          }
         }
       } else {
         console.log('➕ Creating new wind layer');
