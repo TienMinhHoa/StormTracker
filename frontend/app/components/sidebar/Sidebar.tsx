@@ -5,39 +5,48 @@ import { NewsTab, NewsItem } from '../news';
 import { RescueTab, RescueRequest } from '../rescue';
 import { ChatbotTab } from '../chatbot';
 import { DamageTab } from '../damage';
+import { WarningView } from '../warnings';
 import { SettingsPanel } from '../settings';
 import { getStorms, type Storm } from '../../services/stormApi';
 
-type Tab = 'news' | 'rescue' | 'damage' | 'chatbot' | 'settings';
+type Tab = 'news' | 'rescue' | 'damage' | 'warnings' | 'chatbot' | 'settings';
 
 type SidebarProps = {
   onNewsClick?: (news: NewsItem) => void;
   onRescueClick?: (rescue: RescueRequest) => void;
   onDamageClick?: (damage: any) => void;
+  onWarningClick?: (warning: any) => void;
   onTabChange?: (tab: Tab) => void;
-  onStormChange?: (storm: Storm) => void;
+  onStormChange?: (storm: Storm | null) => void;
   selectedNewsId?: number | null;
   selectedStorm?: Storm | null;
+  selectedWarning?: any;
   showNewsMarkers?: boolean;
   onShowNewsMarkersChange?: (show: boolean) => void;
   showRescueMarkers?: boolean;
   onShowRescueMarkersChange?: (show: boolean) => void;
+  showWarningMarkers?: boolean;
+  onShowWarningMarkersChange?: (show: boolean) => void;
 };
 
 export default function Sidebar({
   onNewsClick,
   onRescueClick,
   onDamageClick,
+  onWarningClick,
   onTabChange,
   onStormChange,
   selectedNewsId,
   selectedStorm,
+  selectedWarning,
   showNewsMarkers = true,
   onShowNewsMarkersChange,
   showRescueMarkers = true,
-  onShowRescueMarkersChange
+  onShowRescueMarkersChange,
+  showWarningMarkers = true,
+  onShowWarningMarkersChange
 }: SidebarProps) {
-  const [activeTab, setActiveTab] = useState<'news' | 'rescue' | 'damage' | 'chatbot' | 'settings'>('news');
+  const [activeTab, setActiveTab] = useState<'news' | 'rescue' | 'damage' | 'warnings' | 'chatbot' | 'settings'>('news');
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [storms, setStorms] = useState<Storm[]>([]);
@@ -45,6 +54,23 @@ export default function Sidebar({
   const [selectedStormLocal, setSelectedStormLocal] = useState<Storm | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(320); // Default width in pixels
   const [isResizing, setIsResizing] = useState(false);
+  const [stormFilter, setStormFilter] = useState<'recent3' | 'recent10' | 'all' | 'realtime'>('recent3');
+  const [filteredStorms, setFilteredStorms] = useState<Storm[]>([]);
+  const [isMounted, setIsMounted] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Client-side only mount check
+  useEffect(() => {
+    setIsMounted(true);
+    setIsMobile(window.innerWidth < 768);
+    
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Load storms from API
   useEffect(() => {
@@ -52,15 +78,16 @@ export default function Sidebar({
       try {
         setLoadingStorms(true);
         const stormsData = await getStorms(0, 100);
-        setStorms(stormsData);
         
-        // Select first storm by default if available and no storm is currently selected
-        if (stormsData.length > 0 && !selectedStorm && !selectedStormLocal) {
-          const firstStorm = stormsData[0];
-          setSelectedStormLocal(firstStorm);
-          onStormChange?.(firstStorm);
-          console.log('🌪️ Auto-selected first storm:', firstStorm.name);
-        }
+        // Sort storms by start_date descending (most recent first)
+        const sortedStorms = [...stormsData].sort((a, b) => 
+          new Date(b.start_date).getTime() - new Date(a.start_date).getTime()
+        );
+        
+        setStorms(sortedStorms);
+        
+        // Apply initial filter
+        filterStorms(sortedStorms, stormFilter);
       } catch (error) {
         console.error('❌ Failed to load storms:', error);
       } finally {
@@ -70,6 +97,47 @@ export default function Sidebar({
 
     loadStorms();
   }, []);
+
+  // Filter storms based on selected filter
+  const filterStorms = (allStorms: Storm[], filter: typeof stormFilter) => {
+    let filtered: Storm[] = [];
+    
+    if (filter === 'realtime') {
+      // Real-time mode: only show active storms (no end_date or end_date in future)
+      const now = new Date();
+      filtered = allStorms.filter(storm => 
+        !storm.end_date || new Date(storm.end_date) > now
+      );
+    } else if (filter === 'recent3') {
+      filtered = allStorms.slice(0, 3);
+    } else if (filter === 'recent10') {
+      filtered = allStorms.slice(0, 10);
+    } else {
+      filtered = allStorms;
+    }
+    
+    setFilteredStorms(filtered);
+    
+    // Auto-select first storm if needed
+    if (filtered.length > 0 && !selectedStorm && !selectedStormLocal) {
+      const firstStorm = filtered[0];
+      setSelectedStormLocal(firstStorm);
+      onStormChange?.(firstStorm);
+      console.log('🌪️ Auto-selected first storm:', firstStorm.name);
+    } else if (filtered.length === 0 && filter === 'realtime') {
+      // In realtime mode with no active storms, clear selection
+      setSelectedStormLocal(null);
+      onStormChange?.(null as any);
+      console.log('⏱️ Real-time mode: No active storms');
+    }
+  };
+
+  // Re-filter when filter changes
+  useEffect(() => {
+    if (storms.length > 0) {
+      filterStorms(storms, stormFilter);
+    }
+  }, [stormFilter]);
 
   const handleTabChange = (tab: Tab) => {
     setActiveTab(tab);
@@ -167,7 +235,7 @@ export default function Sidebar({
           ${isCollapsed ? 'w-12' : 'max-w-full'}
           ${isResizing ? '' : 'duration-300'}
         `}
-        style={!isCollapsed && window.innerWidth >= 768 ? { width: `${sidebarWidth}px` } : undefined}
+        style={!isCollapsed && isMounted ? { width: `${sidebarWidth}px` } : undefined}
       >
       <div className="flex flex-col h-full">
         {isCollapsed ? (
@@ -218,7 +286,7 @@ export default function Sidebar({
                 {/* Close button - show on mobile for drawer, desktop for collapse */}
                 <button
                   onClick={() => {
-                    if (window.innerWidth < 768) {
+                    if (isMobile) {
                       setIsMobileOpen(false);
                     } else {
                       setIsCollapsed(true);
@@ -242,25 +310,78 @@ export default function Sidebar({
                 </button>
               </div>
 
+              {/* Storm Filter */}
+              <div className="grid grid-cols-4 gap-1 mb-2">
+                <button
+                  onClick={() => setStormFilter('recent3')}
+                  className={`px-2 py-1 text-xs rounded transition-colors ${
+                    stormFilter === 'recent3'
+                      ? 'bg-teal-600 text-white'
+                      : 'bg-[#1c2127] text-gray-400 hover:text-white'
+                  }`}
+                  title="3 cơn gần nhất"
+                >
+                  3 gần
+                </button>
+                <button
+                  onClick={() => setStormFilter('recent10')}
+                  className={`px-2 py-1 text-xs rounded transition-colors ${
+                    stormFilter === 'recent10'
+                      ? 'bg-teal-600 text-white'
+                      : 'bg-[#1c2127] text-gray-400 hover:text-white'
+                  }`}
+                  title="10 cơn gần nhất"
+                >
+                  10 gần
+                </button>
+                <button
+                  onClick={() => setStormFilter('all')}
+                  className={`px-2 py-1 text-xs rounded transition-colors ${
+                    stormFilter === 'all'
+                      ? 'bg-teal-600 text-white'
+                      : 'bg-[#1c2127] text-gray-400 hover:text-white'
+                  }`}
+                  title="Tất cả cơn bão"
+                >
+                  Tất cả
+                </button>
+                <button
+                  onClick={() => setStormFilter('realtime')}
+                  className={`px-2 py-1 text-xs rounded transition-colors ${
+                    stormFilter === 'realtime'
+                      ? 'bg-red-600 text-white animate-pulse'
+                      : 'bg-[#1c2127] text-gray-400 hover:text-white'
+                  }`}
+                  title="Chế độ thời gian thực - chỉ hiện bão đang hoạt động"
+                >
+                  🔴 Live
+                </button>
+              </div>
+
               {/* Storm Selector */}
               <div className="relative">
                 {loadingStorms ? (
                   <div className="w-full bg-[#1c2127] border border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-400">
                     Đang tải...
                   </div>
+                ) : filteredStorms.length === 0 ? (
+                  <div className="w-full bg-[#1c2127] border border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-400 text-center">
+                    {stormFilter === 'realtime' ? '⏱️ Không có bão đang hoạt động' : 'Không có dữ liệu'}
+                  </div>
                 ) : (
                   <>
                     <select
                       value={currentStorm?.storm_id || ''}
                       onChange={(e) => {
-                        const storm = storms.find(s => s.storm_id === e.target.value);
+                        const storm = filteredStorms.find(s => s.storm_id === e.target.value);
                         if (storm) handleStormChange(storm);
                       }}
                       className="w-full bg-[#1c2127] border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-teal-500 appearance-none"
+                      disabled={filteredStorms.length === 0}
                     >
-                      {storms.map((storm) => (
+                      {filteredStorms.map((storm) => (
                         <option key={storm.storm_id} value={storm.storm_id}>
-                          {storm.name} {storm.end_date ? '(Đã kết thúc)' : '(Đang hoạt động)'}
+                          {storm.name} {storm.end_date ? '(Đã kết thúc)' : '🔴 Đang hoạt động'}
                         </option>
                       ))}
                     </select>
@@ -276,10 +397,10 @@ export default function Sidebar({
 
             {/* Tab Navigation */}
             <div className="flex px-4 py-3">
-              <div className="grid grid-cols-4 h-10 flex-1 items-center justify-center rounded-lg bg-[#1c2127] p-1 gap-1">
+              <div className="grid grid-cols-5 h-10 flex-1 items-center justify-center rounded-lg bg-[#1c2127] p-1 gap-1">
                 <button
                   onClick={() => handleTabChange('news')}
-                  className={`flex h-full items-center justify-center rounded-lg px-2 text-xs font-medium transition-all ${activeTab === 'news'
+                  className={`flex h-full items-center justify-center rounded-lg px-1 text-xs font-medium transition-all ${activeTab === 'news'
                       ? 'bg-[#101922] shadow-sm text-white'
                       : 'text-gray-400 hover:text-gray-300'
                     }`}
@@ -288,7 +409,7 @@ export default function Sidebar({
                 </button>
                 <button
                   onClick={() => handleTabChange('rescue')}
-                  className={`flex h-full items-center justify-center rounded-lg px-2 text-xs font-medium transition-all ${activeTab === 'rescue'
+                  className={`flex h-full items-center justify-center rounded-lg px-1 text-xs font-medium transition-all ${activeTab === 'rescue'
                       ? 'bg-[#101922] shadow-sm text-white'
                       : 'text-gray-400 hover:text-gray-300'
                     }`}
@@ -297,7 +418,7 @@ export default function Sidebar({
                 </button>
                 <button
                   onClick={() => handleTabChange('damage')}
-                  className={`flex h-full items-center justify-center rounded-lg px-2 text-xs font-medium transition-all ${activeTab === 'damage'
+                  className={`flex h-full items-center justify-center rounded-lg px-1 text-xs font-medium transition-all ${activeTab === 'damage'
                       ? 'bg-[#101922] shadow-sm text-white'
                       : 'text-gray-400 hover:text-gray-300'
                     }`}
@@ -305,13 +426,22 @@ export default function Sidebar({
                   Thiệt hại
                 </button>
                 <button
-                  onClick={() => handleTabChange('chatbot')}
-                  className={`flex h-full items-center justify-center rounded-lg px-2 text-xs font-medium transition-all ${activeTab === 'chatbot'
+                  onClick={() => handleTabChange('warnings')}
+                  className={`flex h-full items-center justify-center rounded-lg px-1 text-xs font-medium transition-all ${activeTab === 'warnings'
                       ? 'bg-[#101922] shadow-sm text-white'
                       : 'text-gray-400 hover:text-gray-300'
                     }`}
                 >
-                  💬 Bot
+                  ⚠️
+                </button>
+                <button
+                  onClick={() => handleTabChange('chatbot')}
+                  className={`flex h-full items-center justify-center rounded-lg px-1 text-xs font-medium transition-all ${activeTab === 'chatbot'
+                      ? 'bg-[#101922] shadow-sm text-white'
+                      : 'text-gray-400 hover:text-gray-300'
+                    }`}
+                >
+                  💬
                 </button>
               </div>
             </div>
@@ -336,11 +466,16 @@ export default function Sidebar({
                 />
               )}
               {activeTab === 'damage' && <DamageTab stormId={currentStorm?.storm_id} onDamageClick={onDamageClick} />}
+              {activeTab === 'warnings' && <WarningView onWarningClick={onWarningClick} externalSelectedWarning={selectedWarning} />}
               {activeTab === 'chatbot' && <ChatbotTab />}
               {activeTab === 'settings' && (
                 <SettingsPanel
                   showNewsMarkers={showNewsMarkers}
                   onShowNewsMarkersChange={onShowNewsMarkersChange || (() => {})}
+                  showRescueMarkers={showRescueMarkers}
+                  onShowRescueMarkersChange={onShowRescueMarkersChange || (() => {})}
+                  showWarningMarkers={showWarningMarkers}
+                  onShowWarningMarkersChange={onShowWarningMarkersChange || (() => {})}
                   onClose={() => setActiveTab('news')}
                 />
               )}

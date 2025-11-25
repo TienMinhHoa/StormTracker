@@ -21,19 +21,32 @@ type MapProps = {
   onMapReady?: (flyToLocation: (lng: number, lat: number, zoom?: number) => void) => void;
   rescueRequests?: RescueRequest[];
   newsItems?: Array<{ id: number; coordinates: [number, number]; title: string; image: string; category: string }>;
-  activeTab?: 'news' | 'rescue' | 'damage' | 'chatbot';
+  activeTab?: 'news' | 'rescue' | 'damage' | 'warnings' | 'chatbot';
   onNewsClick?: (news: any) => void;
   selectedStorm?: Storm | null;
   showNewsMarkers?: boolean;
   showRescueMarkers?: boolean;
+  warningItems?: Array<{ 
+    id: number; 
+    lat: number; 
+    lon: number; 
+    commune_name: string;
+    district_name: string;
+    provinceName: string;
+    nguycosatlo: string;
+    nguycoluquet: string;
+    luongmuatd_db: number;
+  }>;
+  onWarningClick?: (warning: any) => void;
 };
 
-export default function Map({ onMapReady, rescueRequests = [], newsItems = [], activeTab = 'news', onNewsClick, selectedStorm, showNewsMarkers = true, showRescueMarkers = true }: MapProps) {
+export default function Map({ onMapReady, rescueRequests = [], newsItems = [], activeTab = 'news', onNewsClick, selectedStorm, showNewsMarkers = true, showRescueMarkers = true, warningItems = [], onWarningClick }: MapProps) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const marker = useRef<mapboxgl.Marker | null>(null);
   const rescueMarkers = useRef<mapboxgl.Marker[]>([]);
   const newsMarkers = useRef<mapboxgl.Marker[]>([]);
+  const warningMarkers = useRef<mapboxgl.Marker[]>([]);
   const [mapState, setMapState] = useState({
     lat: 21.0278,
     lng: 105.8342,
@@ -354,6 +367,105 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
     });
   }, [rescueRequests, activeTab, showRescueMarkers]);
 
+  // Warning markers effect
+  useEffect(() => {
+    if (!map.current || !mapReady) return;
+
+    // Clear existing warning markers
+    warningMarkers.current.forEach(marker => marker.remove());
+    warningMarkers.current = [];
+
+    // Only show warnings when warnings tab is active
+    if (activeTab !== 'warnings' || warningItems.length === 0) return;
+
+    console.log(`⚠️ Adding ${warningItems.length} warning markers to map`);
+
+    warningItems.forEach((warning) => {
+      const { id, commune_id, commune_id_2cap, lon, lat, commune_name, district_name, provinceName, nguycosatlo, nguycoluquet, luongmuatd_db } = warning;
+      const uniqueKey = `${id}-${commune_id}-${commune_id_2cap}`;
+
+      // Determine max risk level
+      const maxRisk = nguycosatlo === 'Rất cao' || nguycoluquet === 'Rất cao' ? 'Rất cao' :
+                     nguycosatlo === 'Cao' || nguycoluquet === 'Cao' ? 'Cao' :
+                     nguycosatlo === 'Trung bình' || nguycoluquet === 'Trung bình' ? 'Trung bình' : 'Thấp';
+
+      // Risk colors
+      const riskColors: Record<string, string> = {
+        'Rất cao': '#ef4444',
+        'Cao': '#f97316',
+        'Trung bình': '#eab308',
+        'Thấp': '#22c55e',
+      };
+      const color = riskColors[maxRisk] || '#6b7280';
+
+      // Create marker element
+      const el = document.createElement('div');
+      el.className = 'warning-marker';
+      el.dataset.warningKey = uniqueKey;
+      el.style.width = '28px';
+      el.style.height = '28px';
+      el.style.borderRadius = '50%';
+      el.style.backgroundColor = color;
+      el.style.border = '2px solid white';
+      el.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.3)';
+      el.style.cursor = 'pointer';
+      el.style.display = 'flex';
+      el.style.alignItems = 'center';
+      el.style.justifyContent = 'center';
+      el.style.fontWeight = 'bold';
+      el.style.color = 'white';
+      el.style.fontSize = '14px';
+      el.innerHTML = '⚠️';
+
+      // Add pulsing animation for high risks
+      if (maxRisk === 'Rất cao' || maxRisk === 'Cao') {
+        el.style.animation = 'pulse 2s infinite';
+      }
+
+      // Create popup
+      const popup = new mapboxgl.Popup({ 
+        offset: 25, 
+        closeButton: false,
+        className: 'warning-popup'
+      }).setHTML(`
+        <div style="padding: 12px; min-width: 240px;">
+          <h3 style="margin: 0 0 8px 0; font-weight: bold; color: ${color}; font-size: 14px;">
+            ${maxRisk.toUpperCase()}
+          </h3>
+          <p style="margin: 4px 0; font-size: 13px;"><strong>Khu vực:</strong> ${commune_name}</p>
+          <p style="margin: 4px 0; font-size: 13px;"><strong>Huyện:</strong> ${district_name}</p>
+          <p style="margin: 4px 0; font-size: 13px;"><strong>Tỉnh:</strong> ${provinceName}</p>
+          <hr style="margin: 8px 0; border: none; border-top: 1px solid #ddd;" />
+          ${nguycosatlo ? `<p style="margin: 4px 0; font-size: 12px;">🏔️ Sạt lở: <strong style="color: ${riskColors[nguycosatlo] || '#999'}">${nguycosatlo}</strong></p>` : ''}
+          ${nguycoluquet ? `<p style="margin: 4px 0; font-size: 12px;">🌊 Lũ quét: <strong style="color: ${riskColors[nguycoluquet] || '#999'}">${nguycoluquet}</strong></p>` : ''}
+          <p style="margin: 4px 0; font-size: 12px;">☔ Lượng mưa: <strong>${luongmuatd_db}mm</strong></p>
+        </div>
+      `);
+
+      // Click handler
+      el.addEventListener('click', () => {
+        if (onWarningClick) {
+          onWarningClick(warning);
+        }
+        if (map.current) {
+          map.current.flyTo({
+            center: [lon, lat],
+            zoom: 11,
+            duration: 2000,
+          });
+        }
+      });
+
+      // Create and add marker
+      const warningMarker = new mapboxgl.Marker({ element: el })
+        .setLngLat([lon, lat])
+        .setPopup(popup)
+        .addTo(map.current!);
+
+      warningMarkers.current.push(warningMarker);
+    });
+  }, [warningItems, activeTab, onWarningClick, mapReady]);
+
   // Zoom controls callbacks
   const handleZoomIn = useCallback(() => {
     if (map.current) {
@@ -418,7 +530,7 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
       )} */}
 
       {/* Storm Track Layer (new visualization with pulse animation) */}
-      {mapReady && (
+      {mapReady && selectedStorm && (
         <StormTrackLayer
           map={map.current}
           enabled={true}
