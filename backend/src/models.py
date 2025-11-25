@@ -103,16 +103,20 @@ class RescueRequest(Base):
 
     request_id = Column(Integer, primary_key=True)
     storm_id = Column(String, ForeignKey("storms.storm_id"))
-    social_post_id = Column(Integer, ForeignKey("social_posts.post_id"))
+    name = Column(String)
     phone = Column(String)
+    address = Column(Text)
     lat = Column(Float)
     lon = Column(Float)
-    severity = Column(Integer)
+    priority = Column(Integer)  # Renamed from severity
+    status = Column(String)
+    type = Column(Text)
+    people_detail = Column(JSON)
     verified = Column(Boolean)
-    created_at = Column(DateTime)
+    note = Column(Text)
+    created_at = Column(DateTime, server_default=func.now())
 
     storm = relationship("Storm", back_populates="rescue_requests")
-    social_post = relationship("SocialPost")
 
 
 

@@ -147,3 +147,52 @@ class DamageAssessmentResponse(BaseModel):
     time: datetime
     created_at: datetime
     updated_at: datetime
+
+
+# RescueRequest Schemas
+class RescueRequestCreate(BaseModel):
+    storm_id: str
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    priority: Optional[int] = None  # 1-5: 1=highest priority
+    status: Optional[str] = None  # e.g., "pending", "in_progress", "completed"
+    type: Optional[str] = None
+    people_detail: Optional[dict] = None  # JSON with people information
+    verified: Optional[bool] = False
+    note: Optional[str] = None
+
+
+class RescueRequestUpdate(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    priority: Optional[int] = None
+    status: Optional[str] = None
+    type: Optional[str] = None
+    people_detail: Optional[dict] = None
+    verified: Optional[bool] = None
+    note: Optional[str] = None
+
+
+class RescueRequestResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
+    request_id: int
+    storm_id: str
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    priority: Optional[int] = None
+    status: Optional[str] = None
+    type: Optional[str] = None
+    people_detail: Optional[dict] = None
+    verified: Optional[bool] = None
+    note: Optional[str] = None
+    created_at: datetime
