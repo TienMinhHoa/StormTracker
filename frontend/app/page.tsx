@@ -121,7 +121,7 @@ export default function Home() {
   };
 
   return (
-    <main className="relative h-screen w-full bg-[#101922]">
+    <main className="relative h-screen w-full bg-[#101922] overflow-hidden">
       <Sidebar
         onNewsClick={handleNewsClick}
         onRescueClick={handleRescueClick}
@@ -135,7 +135,7 @@ export default function Home() {
         showRescueMarkers={showRescueMarkers}
         onShowRescueMarkersChange={setShowRescueMarkers}
       />
-      <div className="absolute inset-0">
+      <div className="absolute inset-0 md:left-0">
         <Map
           onMapReady={handleMapReady}
           rescueRequests={rescueRequests}

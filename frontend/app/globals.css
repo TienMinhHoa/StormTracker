@@ -97,3 +97,74 @@ body {
 .mapboxgl-popup-tip {
   border-top-color: white !important;
 }
+
+/* Mobile Responsive Styles */
+@media (max-width: 768px) {
+  /* Prevent body scroll on mobile */
+  body {
+    overflow: hidden;
+    position: fixed;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Ensure map controls are visible and accessible */
+  .mapboxgl-ctrl-top-right {
+    top: 70px !important; /* Below hamburger button */
+  }
+
+  .mapboxgl-ctrl-bottom-right {
+    bottom: 20px !important;
+    right: 10px !important;
+  }
+
+  .mapboxgl-ctrl-bottom-left {
+    bottom: 20px !important;
+    left: 10px !important;
+  }
+
+  /* Make popups responsive */
+  .mapboxgl-popup {
+    max-width: calc(100vw - 40px) !important;
+  }
+
+  /* Touch-friendly controls */
+  .mapboxgl-ctrl button {
+    width: 36px !important;
+    height: 36px !important;
+  }
+}
+
+/* Tablet and small desktop */
+@media (min-width: 768px) and (max-width: 1024px) {
+  /* Adjust sidebar width for tablets */
+  aside:not(.collapsed) {
+    min-width: 280px;
+  }
+}
+
+/* Resize handle styles */
+.resize-handle {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 4px;
+  height: 100%;
+  cursor: ew-resize;
+  z-index: 10;
+}
+
+.resize-handle:hover {
+  background: rgba(20, 184, 166, 0.3);
+}
+
+.resize-handle::after {
+  content: '';
+  position: absolute;
+  right: -2px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 8px;
+  height: 40px;
+  background: transparent;
+}
