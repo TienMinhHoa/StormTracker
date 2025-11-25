@@ -8,8 +8,6 @@ import { DamageTab } from '../damage';
 import { SettingsPanel } from '../settings';
 import { getStorms, type Storm } from '../../services/stormApi';
 
-type Tab = 'news' | 'rescue' | 'damage' | 'chatbot';
-
 type Tab = 'news' | 'rescue' | 'damage' | 'chatbot' | 'settings';
 
 type SidebarProps = {
@@ -41,9 +39,12 @@ export default function Sidebar({
 }: SidebarProps) {
   const [activeTab, setActiveTab] = useState<'news' | 'rescue' | 'damage' | 'chatbot' | 'settings'>('news');
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [storms, setStorms] = useState<Storm[]>([]);
   const [loadingStorms, setLoadingStorms] = useState(true);
   const [selectedStormLocal, setSelectedStormLocal] = useState<Storm | null>(null);
+  const [sidebarWidth, setSidebarWidth] = useState(320); // Default width in pixels
+  const [isResizing, setIsResizing] = useState(false);
 
   // Load storms from API
   useEffect(() => {
@@ -80,11 +81,94 @@ export default function Sidebar({
     onStormChange?.(storm);
   };
 
+  // Resize handler
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing) return;
+
+      const newWidth = e.clientX;
+      // Limit width between 280px and 600px
+      if (newWidth >= 280 && newWidth <= 600) {
+        setSidebarWidth(newWidth);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'ew-resize';
+      document.body.style.userSelect = 'none';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isResizing]);
+
   const currentStorm = selectedStorm || selectedStormLocal;
 
   return (
-    <aside className={`absolute left-0 top-0 h-full z-20 bg-[#101922] border-r border-white/10 transition-[width] duration-300 ease-in-out ${isCollapsed ? 'w-12' : 'w-80'
-      }`}>
+    <>
+      {/* Mobile Hamburger Button - Fixed to top-left */}
+      <button
+        onClick={() => setIsMobileOpen(!isMobileOpen)}
+        className="md:hidden fixed top-4 left-4 z-50 w-12 h-12 flex items-center justify-center bg-[#101922] border border-white/10 rounded-lg text-white shadow-lg hover:bg-[#1c2127] transition-colors"
+      >
+        <svg
+          className="w-6 h-6"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          {isMobileOpen ? (
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M6 18L18 6M6 6l12 12"
+            />
+          ) : (
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 6h16M4 12h16M4 18h16"
+            />
+          )}
+        </svg>
+      </button>
+
+      {/* Mobile Overlay */}
+      {isMobileOpen && (
+        <div
+          className="md:hidden fixed inset-0 bg-black/50 z-30"
+          onClick={() => setIsMobileOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside 
+        className={`
+          fixed md:absolute left-0 top-0 h-full z-40 bg-[#101922] border-r border-white/10 transition-all ease-in-out
+          ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}
+          md:translate-x-0
+          ${isCollapsed ? 'w-12' : 'max-w-full'}
+          ${isResizing ? '' : 'duration-300'}
+        `}
+        style={!isCollapsed && window.innerWidth >= 768 ? { width: `${sidebarWidth}px` } : undefined}
+      >
       <div className="flex flex-col h-full">
         {isCollapsed ? (
           /* Collapsed state - only show expand button */
@@ -131,8 +215,15 @@ export default function Sidebar({
                     Storm Tracker
                   </h1>
                 </div>
+                {/* Close button - show on mobile for drawer, desktop for collapse */}
                 <button
-                  onClick={() => setIsCollapsed(true)}
+                  onClick={() => {
+                    if (window.innerWidth < 768) {
+                      setIsMobileOpen(false);
+                    } else {
+                      setIsCollapsed(true);
+                    }
+                  }}
                   className="p-1 text-gray-400 hover:text-white transition-colors flex-shrink-0"
                 >
                   <svg
@@ -286,6 +377,19 @@ export default function Sidebar({
           </>
         )}
       </div>
+
+      {/* Resize Handle - Only show on desktop when not collapsed */}
+      {!isCollapsed && (
+        <div
+          className="hidden md:block absolute top-0 right-0 w-1 h-full cursor-ew-resize hover:bg-teal-500 transition-colors z-10 group"
+          onMouseDown={handleMouseDown}
+        >
+          <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-16 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="w-1 h-full bg-teal-500 rounded-full"></div>
+          </div>
+        </div>
+      )}
     </aside>
+    </>
   );
 }
