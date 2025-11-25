@@ -1,18 +1,40 @@
 'use client';
 
-import { useState } from 'react';
-import { DamageAssessment, getDamageAssessments } from '../../data';
+import { useState, useEffect } from 'react';
+import { getDamageByStorm, getLatestDamageByStorm, type DamageAssessment, normalizeSources } from '../../services/damageApi';
 
 type DamageTabProps = {
-  stormId?: number;
+  stormId?: string;
   onDamageClick?: (damage: DamageAssessment) => void;
 };
 
 export default function DamageTab({ stormId, onDamageClick }: DamageTabProps) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [damageData, setDamageData] = useState<DamageAssessment[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  // Get damage data from mock data helpers (simulating API call)
-  const damageData: DamageAssessment[] = stormId ? getDamageAssessments(stormId) : [];
+  // Fetch damage data from API
+  useEffect(() => {
+    const fetchDamage = async () => {
+      if (!stormId) {
+        setDamageData([]);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const data = await getDamageByStorm(stormId);
+        setDamageData(data);
+      } catch (error) {
+        console.error('Failed to fetch damage data:', error);
+        setDamageData([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDamage();
+  }, [stormId]);
 
   const handleDamageClick = (damage: DamageAssessment) => {
     setExpandedId(expandedId === damage.id ? null : damage.id);
@@ -23,49 +45,95 @@ export default function DamageTab({ stormId, onDamageClick }: DamageTabProps) {
     return new Date(dateString).toLocaleString('vi-VN', {
       day: '2-digit',
       month: '2-digit',
+      year: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
     });
   };
 
-  const getSeverityColor = (fatalities: number, injured: number) => {
-    const totalAffected = fatalities + injured;
-    if (totalAffected >= 50) return { bg: 'bg-red-500/10', border: 'border-red-500', text: 'text-red-400' };
-    if (totalAffected >= 25) return { bg: 'bg-orange-500/10', border: 'border-orange-500', text: 'text-orange-400' };
-    if (totalAffected >= 10) return { bg: 'bg-yellow-500/10', border: 'border-yellow-500', text: 'text-yellow-400' };
-    return { bg: 'bg-green-500/10', border: 'border-green-500', text: 'text-green-400' };
+  const formatNumber = (num: number | null) => {
+    if (num === null || num === undefined) return 'N/A';
+    return num.toLocaleString('vi-VN');
   };
 
-  const totalFatalities = damageData.reduce((sum, d) => sum + d.total_fatalities, 0);
-  const totalInjured = damageData.reduce((sum, d) => sum + d.total_injured, 0);
-  const totalFacilities = damageData.reduce((sum, d) => sum + d.total_facilities, 0);
+  const getSeverityColor = (deaths: number | null, missing: number | null, injured: number | null) => {
+    const totalAffected = (deaths || 0) + (missing || 0) + (injured || 0);
+    if (totalAffected >= 50) return { bg: 'bg-red-500/10', border: 'border-red-500', text: 'text-red-400', icon: '🔴' };
+    if (totalAffected >= 25) return { bg: 'bg-orange-500/10', border: 'border-orange-500', text: 'text-orange-400', icon: '🟠' };
+    if (totalAffected >= 10) return { bg: 'bg-yellow-500/10', border: 'border-yellow-500', text: 'text-yellow-400', icon: '🟡' };
+    return { bg: 'bg-blue-500/10', border: 'border-blue-500', text: 'text-blue-400', icon: '🔵' };
+  };
+
+  // Calculate totals from latest damage assessment
+  const latestDamage = damageData.length > 0 ? damageData[0] : null;
+  const totalDeaths = latestDamage?.detail.casualties.deaths || 0;
+  const totalMissing = latestDamage?.detail.casualties.missing || 0;
+  const totalInjured = latestDamage?.detail.casualties.injured || 0;
+  const totalEconomicLoss = latestDamage?.detail.total_economic_loss_vnd || 0;
+
+  if (loading) {
+    return (
+      <div className="flex-1 overflow-y-auto flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-500 mx-auto mb-4"></div>
+          <p className="text-gray-400">Đang tải dữ liệu thiệt hại...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div className="flex-1 overflow-y-auto scrollbar-thin">
       <div className="px-4 py-4 space-y-4">
         {/* Header with Summary */}
-        <div className="bg-[#1c2127] rounded-lg p-4">
-          <h2 className="text-lg font-bold text-white mb-3">Tổng quan thiệt hại</h2>
-          <div className="grid grid-cols-3 gap-4 text-center">
-            <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
-              <div className="text-2xl font-bold text-red-400">{totalFatalities}</div>
-              <div className="text-xs text-gray-400">Tử vong</div>
+        {latestDamage && (
+          <div className="bg-[#1c2127] rounded-lg p-4 space-y-3">
+            <h2 className="text-lg font-bold text-white mb-3">📊 Tổng quan thiệt hại</h2>
+            
+            {/* Casualties Summary */}
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
+                <div className="text-2xl font-bold text-red-400">{formatNumber(totalDeaths)}</div>
+                <div className="text-xs text-gray-400">💀 Tử vong</div>
+              </div>
+              <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3">
+                <div className="text-2xl font-bold text-yellow-400">{formatNumber(totalMissing)}</div>
+                <div className="text-xs text-gray-400">❓ Mất tích</div>
+              </div>
+              <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-3">
+                <div className="text-2xl font-bold text-orange-400">{formatNumber(totalInjured)}</div>
+                <div className="text-xs text-gray-400">🤕 Bị thương</div>
+              </div>
             </div>
-            <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-3">
-              <div className="text-2xl font-bold text-orange-400">{totalInjured}</div>
-              <div className="text-xs text-gray-400">Bị thương</div>
-            </div>
-            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3">
-              <div className="text-2xl font-bold text-yellow-400">{totalFacilities}</div>
-              <div className="text-xs text-gray-400">Cơ sở hạ tầng</div>
-            </div>
+
+            {/* Economic Loss */}
+            {totalEconomicLoss > 0 && (
+              <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-3 text-center">
+                <div className="text-2xl font-bold text-purple-400">{formatNumber(totalEconomicLoss)} tỷ đồng</div>
+                <div className="text-xs text-gray-400">💰 Tổng thiệt hại kinh tế</div>
+              </div>
+            )}
+
+            {/* Summary */}
+            {latestDamage.detail.summary && (
+              <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
+                <p className="text-sm text-gray-300 italic">"{latestDamage.detail.summary}"</p>
+              </div>
+            )}
           </div>
-        </div>
+        )}
 
         {/* Damage Assessment List */}
         <div className="flex flex-col gap-3">
           {damageData.map((damage) => {
-            const colors = getSeverityColor(damage.total_fatalities, damage.total_injured);
+            if (!damage || !damage.detail) return null;
+            
+            const { casualties, property, infrastructure, agriculture } = damage.detail;
+            const colors = getSeverityColor(
+              casualties.deaths || 0,
+              casualties.injured || 0,
+              casualties.missing || 0
+            );
             const isExpanded = expandedId === damage.id;
 
             return (
@@ -81,63 +149,134 @@ export default function DamageTab({ stormId, onDamageClick }: DamageTabProps) {
                     <div className="flex items-center gap-2">
                       <span className="text-lg">🏗️</span>
                       <h3 className={`font-bold ${colors.text} text-sm`}>
-                        Đánh giá thiệt hại #{damage.id}
+                        {damage.location_name || `Thiệt hại #${damage.id}`}
                       </h3>
                     </div>
                     <div className="flex flex-col items-end gap-1">
                       <span className="text-xs text-gray-400">
-                        Cập nhật: {formatDate(damage.updated_at)}
+                        {formatDate(damage.created_at)}
                       </span>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 text-xs text-gray-400 mb-1">
-                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
-                    </svg>
-                    <span className="truncate">
-                      {damage.lat.toFixed(4)}°N, {damage.lon.toFixed(4)}°E
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-3 text-xs text-gray-400">
-                    <span className="flex items-center gap-1">
-                      💀 {damage.total_fatalities}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      🤕 {damage.total_injured}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      🏢 {damage.total_facilities}
-                    </span>
+                  {/* Quick Stats */}
+                  <div className="flex items-center gap-3 text-xs">
+                    {(casualties.deaths ?? 0) > 0 && (
+                      <span className="flex items-center gap-1 text-red-400">
+                        💀 {casualties.deaths}
+                      </span>
+                    )}
+                    {(casualties.missing ?? 0) > 0 && (
+                      <span className="flex items-center gap-1 text-yellow-400">
+                        ❓ {casualties.missing}
+                      </span>
+                    )}
+                    {(casualties.injured ?? 0) > 0 && (
+                      <span className="flex items-center gap-1 text-orange-400">
+                        🤕 {casualties.injured}
+                      </span>
+                    )}
                   </div>
                 </div>
 
                 {/* Expanded Content */}
                 {isExpanded && (
-                  <div className={`px-3 pb-3 pt-2 border-t ${colors.border}/20`}>
-                    <div className="grid grid-cols-2 gap-3 text-xs mb-3">
-                      <div>
-                        <p className="text-gray-400">Thời gian đánh giá:</p>
-                        <p className="text-white">{formatDate(damage.time)}</p>
+                  <div className={`px-3 pb-3 pt-2 border-t ${colors.border}/20 space-y-3`}>
+                    {/* Property Damage */}
+                    {((property.houses_damaged ?? 0) > 0 || (property.houses_flooded ?? 0) > 0 || (property.boats_damaged ?? 0) > 0) && (
+                      <div className="bg-black/30 rounded p-2 space-y-1">
+                        <h4 className="text-white font-semibold text-xs">🏠 Tài sản</h4>
+                        <div className="grid grid-cols-3 gap-2 text-xs">
+                          {(property.houses_damaged ?? 0) > 0 && (
+                            <div className="text-center">
+                              <div className="text-white font-bold">{formatNumber(property.houses_damaged)}</div>
+                              <div className="text-gray-400 text-[10px]">Nhà hư</div>
+                            </div>
+                          )}
+                          {(property.houses_flooded ?? 0) > 0 && (
+                            <div className="text-center">
+                              <div className="text-white font-bold">{formatNumber(property.houses_flooded)}</div>
+                              <div className="text-gray-400 text-[10px]">Nhà ngập</div>
+                            </div>
+                          )}
+                          {(property.boats_damaged ?? 0) > 0 && (
+                            <div className="text-center">
+                              <div className="text-white font-bold">{formatNumber(property.boats_damaged)}</div>
+                              <div className="text-gray-400 text-[10px]">Tàu thuyền</div>
+                            </div>
+                          )}
+                        </div>
+                        {property.description && (
+                          <p className="text-gray-400 text-xs italic">{property.description}</p>
+                        )}
                       </div>
-                      <div>
-                        <p className="text-gray-400">Nguồn tin:</p>
-                        <p className="text-white">News ID: {damage.news_id}</p>
+                    )}
+
+                    {/* Infrastructure */}
+                    {infrastructure.description && (
+                      <div className="bg-black/30 rounded p-2 space-y-1">
+                        <h4 className="text-white font-semibold text-xs">🏗️ Cơ sở hạ tầng</h4>
+                        <p className="text-gray-400 text-xs">{infrastructure.description}</p>
                       </div>
-                    </div>
-                    <div className="text-xs text-gray-400 mb-3 space-y-1">
-                      <p>📍 Tọa độ chính xác: {damage.lat.toFixed(6)}°N, {damage.lon.toFixed(6)}°E</p>
-                      <p>🆔 ID đánh giá: {damage.id}</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button className="flex-1 text-xs px-3 py-2 bg-[#137fec] text-white rounded-lg hover:bg-[#137fec]/90 transition-colors font-medium">
-                        📍 Xem trên bản đồ
-                      </button>
-                      <button className="flex-1 text-xs px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium">
-                        📊 Chi tiết báo cáo
-                      </button>
-                    </div>
+                    )}
+
+                    {/* Agriculture */}
+                    {((agriculture.crop_area_damaged_ha ?? 0) > 0 || (agriculture.livestock_lost ?? 0) > 0) && (
+                      <div className="bg-black/30 rounded p-2 space-y-1">
+                        <h4 className="text-white font-semibold text-xs">🌾 Nông nghiệp</h4>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          {(agriculture.crop_area_damaged_ha ?? 0) > 0 && (
+                            <div>
+                              <div className="text-white font-bold">{formatNumber(agriculture.crop_area_damaged_ha)} ha</div>
+                              <div className="text-gray-400 text-[10px]">Cây trồng</div>
+                            </div>
+                          )}
+                          {(agriculture.livestock_lost ?? 0) > 0 && (
+                            <div>
+                              <div className="text-white font-bold">{formatNumber(agriculture.livestock_lost)}</div>
+                              <div className="text-gray-400 text-[10px]">Gia súc</div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Economic Loss */}
+                    {(damage.detail.total_economic_loss_vnd ?? 0) > 0 && (
+                      <div className="bg-purple-500/20 border border-purple-500/30 rounded p-2 text-center">
+                        <div className="text-purple-400 font-bold text-sm">
+                          {formatNumber(damage.detail.total_economic_loss_vnd)} tỷ đồng
+                        </div>
+                        <div className="text-gray-400 text-[10px]">💰 Thiệt hại kinh tế</div>
+                      </div>
+                    )}
+
+                    {/* Sources */}
+                    {damage.detail.sources && damage.detail.sources.length > 0 && (
+                      <details className="text-xs">
+                        <summary className="cursor-pointer text-teal-400 hover:text-teal-300 font-medium">
+                          📰 Nguồn tin ({damage.detail.sources.length})
+                        </summary>
+                        <div className="mt-2 space-y-1 bg-black/20 rounded p-2">
+                          {normalizeSources(damage.detail.sources).map((source, idx) => (
+                            <div key={idx} className="text-[10px]">
+                              {source.url ? (
+                                <a 
+                                  href={source.url} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="text-teal-400 hover:text-teal-300 underline flex items-center gap-1"
+                                >
+                                  🔗 {source.name}
+                                </a>
+                              ) : (
+                                <p className="text-gray-300">{source.name}</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    )}
                   </div>
                 )}
               </div>
