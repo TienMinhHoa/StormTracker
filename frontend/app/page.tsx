@@ -7,16 +7,21 @@ import { NewsItem } from './components/news';
 import { RescueRequest, rescueRequests } from './components/rescue';
 import type { Storm } from './services/stormApi';
 import { getNewsByStorm, type News } from './services/newsApi';
+import { getWarnings, type Warning } from './services/warningApi';
 
 export default function Home() {
   const flyToLocationRef = useRef<((lng: number, lat: number, zoom?: number) => void) | null>(null);
-  const [activeTab, setActiveTab] = useState<'news' | 'rescue' | 'damage' | 'chatbot'>('news');
+  const [activeTab, setActiveTab] = useState<'news' | 'rescue' | 'damage' | 'warnings' | 'chatbot'>('news');
   const [selectedNewsId, setSelectedNewsId] = useState<number | null>(null);
   const [selectedStorm, setSelectedStorm] = useState<Storm | null>(null); // Will be set by Sidebar when storms load
   const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
   const [loadingNews, setLoadingNews] = useState(false);
   const [showNewsMarkers, setShowNewsMarkers] = useState(true); // Default to true
   const [showRescueMarkers, setShowRescueMarkers] = useState(true); // Default to true
+  const [showWarningMarkers, setShowWarningMarkers] = useState(true); // Default to true
+  const [warningItems, setWarningItems] = useState<Warning[]>([]);
+  const [loadingWarnings, setLoadingWarnings] = useState(false);
+  const [selectedWarning, setSelectedWarning] = useState<Warning | null>(null);
 
   // Fetch news when selectedStorm changes
   useEffect(() => {
@@ -65,11 +70,36 @@ export default function Home() {
     fetchNews();
   }, [selectedStorm]);
 
+  // Fetch warnings when warnings tab is active
+  useEffect(() => {
+    const fetchWarnings = async () => {
+      if (activeTab !== 'warnings' || !showWarningMarkers) {
+        setWarningItems([]);
+        return;
+      }
+
+      try {
+        setLoadingWarnings(true);
+        console.log('⚠️ Fetching warnings for map...');
+        const data = await getWarnings(6); // Fixed 6 hours
+        setWarningItems(data);
+        console.log(`✅ Loaded ${data.length} warnings for map`);
+      } catch (error) {
+        console.error('❌ Failed to load warnings for map:', error);
+        setWarningItems([]);
+      } finally {
+        setLoadingWarnings(false);
+      }
+    };
+
+    fetchWarnings();
+  }, [activeTab, showWarningMarkers]);
+
   const handleMapReady = (flyToLocation: (lng: number, lat: number, zoom?: number) => void) => {
     flyToLocationRef.current = flyToLocation;
   };
 
-  const handleTabChange = (tab: 'news' | 'rescue' | 'damage' | 'chatbot' | 'settings') => {
+  const handleTabChange = (tab: 'news' | 'rescue' | 'damage' | 'warnings' | 'chatbot' | 'settings') => {
     setActiveTab(tab);
     // Clear selected news when changing tabs
     if (tab !== 'news') {
@@ -77,8 +107,12 @@ export default function Home() {
     }
   };
 
-  const handleStormChange = (storm: Storm) => {
-    console.log('🌪️ Storm changed:', storm.name);
+  const handleStormChange = (storm: Storm | null) => {
+    if (storm) {
+      console.log('🌪️ Storm changed:', storm.name);
+    } else {
+      console.log('⏱️ Real-time mode: No active storms');
+    }
     setSelectedStorm(storm);
   };
 
@@ -115,8 +149,24 @@ export default function Home() {
     // Zoom to rescue location
     if (flyToLocationRef.current && rescue.coordinates && Array.isArray(rescue.coordinates)) {
       const [lng, lat] = rescue.coordinates;
-      // Use a default rescue marker image or create a custom marker
       flyToLocationRef.current(lng, lat, 12);
+    }
+  };
+
+  const handleWarningClick = (warning: any) => {
+    console.log('⚠️ Warning clicked:', warning.commune_name);
+
+    // Set selected warning to trigger expand in sidebar
+    setSelectedWarning(warning);
+
+    // Make sure we're on warnings tab
+    if (activeTab !== 'warnings') {
+      setActiveTab('warnings');
+    }
+
+    // Zoom to warning location
+    if (flyToLocationRef.current && warning.lat && warning.lon) {
+      flyToLocationRef.current(warning.lon, warning.lat, 11);
     }
   };
 
@@ -126,22 +176,28 @@ export default function Home() {
         onNewsClick={handleNewsClick}
         onRescueClick={handleRescueClick}
         onDamageClick={handleDamageClick}
+        onWarningClick={handleWarningClick}
         onTabChange={handleTabChange}
         onStormChange={handleStormChange}
         selectedNewsId={selectedNewsId}
         selectedStorm={selectedStorm}
+        selectedWarning={selectedWarning}
         showNewsMarkers={showNewsMarkers}
         onShowNewsMarkersChange={setShowNewsMarkers}
         showRescueMarkers={showRescueMarkers}
         onShowRescueMarkersChange={setShowRescueMarkers}
+        showWarningMarkers={showWarningMarkers}
+        onShowWarningMarkersChange={setShowWarningMarkers}
       />
       <div className="absolute inset-0 md:left-0">
         <Map
           onMapReady={handleMapReady}
           rescueRequests={rescueRequests}
           newsItems={newsItems}
+          warningItems={warningItems}
           activeTab={activeTab}
           onNewsClick={handleNewsClick}
+          onWarningClick={handleWarningClick}
           selectedStorm={selectedStorm}
           showNewsMarkers={showNewsMarkers}
           showRescueMarkers={showRescueMarkers}

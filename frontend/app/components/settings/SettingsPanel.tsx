@@ -5,12 +5,20 @@ import { useState } from 'react';
 type SettingsPanelProps = {
   showNewsMarkers: boolean;
   onShowNewsMarkersChange: (show: boolean) => void;
+  showRescueMarkers: boolean;
+  onShowRescueMarkersChange: (show: boolean) => void;
+  showWarningMarkers: boolean;
+  onShowWarningMarkersChange: (show: boolean) => void;
   onClose: () => void;
 };
 
 export default function SettingsPanel({
   showNewsMarkers,
   onShowNewsMarkersChange,
+  showRescueMarkers,
+  onShowRescueMarkersChange,
+  showWarningMarkers,
+  onShowWarningMarkersChange,
   onClose
 }: SettingsPanelProps) {
   return (
@@ -75,6 +83,50 @@ export default function SettingsPanel({
                     <span
                       className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
                         showNewsMarkers ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Show Rescue Markers Toggle */}
+                <div className="flex items-center justify-between p-4 bg-[#1c2127] rounded-lg">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-white font-medium">Hiển thị marker cứu hộ</span>
+                    <span className="text-gray-400 text-sm">
+                      Hiển thị marker trên bản đồ khi xem cứu hộ
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => onShowRescueMarkersChange(!showRescueMarkers)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      showRescueMarkers ? 'bg-[#137fec]' : 'bg-gray-600'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        showRescueMarkers ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Show Warning Markers Toggle */}
+                <div className="flex items-center justify-between p-4 bg-[#1c2127] rounded-lg">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-white font-medium">Hiển thị marker cảnh báo</span>
+                    <span className="text-gray-400 text-sm">
+                      Hiển thị marker cảnh báo sạt lở và lũ quét
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => onShowWarningMarkersChange(!showWarningMarkers)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      showWarningMarkers ? 'bg-[#137fec]' : 'bg-gray-600'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        showWarningMarkers ? 'translate-x-6' : 'translate-x-1'
                       }`}
                     />
                   </button>
