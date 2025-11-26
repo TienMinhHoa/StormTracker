@@ -58,6 +58,21 @@ class NewsSourceTables:
         result = await session.execute(query)
         return result.scalars().all()
     
+    async def get_news_by_storm_and_category(
+        self,
+        session: AsyncSession,
+        storm_id: str,
+        category: str,
+        skip: int = 0,
+        limit: int = 100
+    ) -> List[NewsSourceDB]:
+        query = select(NewsSourceDB).where(
+            NewsSourceDB.storm_id == storm_id,
+            NewsSourceDB.category == category
+        ).order_by(NewsSourceDB.published_at.desc()).offset(skip).limit(limit)
+        result = await session.execute(query)
+        return result.scalars().all()
+    
     async def get_all_news(
         self,
         session: AsyncSession,

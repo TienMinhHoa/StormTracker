@@ -14,6 +14,7 @@ import { RescueRequest } from '../rescue';
 import { AVAILABLE_TIMESTAMPS } from './services/tiffService';
 import { getStormTracks, type Storm, type StormTrack } from '../../services/stormApi';
 import { getSafeImageUrl, DEFAULT_NEWS_IMAGE } from '../../utils/imageUtils';
+import type { DamageNews } from '../../services/damageApi';
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!;
 
@@ -21,11 +22,15 @@ type MapProps = {
   onMapReady?: (flyToLocation: (lng: number, lat: number, zoom?: number) => void) => void;
   rescueRequests?: RescueRequest[];
   newsItems?: Array<{ id: number; coordinates: [number, number]; title: string; image: string; category: string }>;
-  activeTab?: 'news' | 'rescue' | 'damage' | 'warnings' | 'chatbot';
+  activeTab?: 'forecast' | 'rescue' | 'damage' | 'chatbot';
   onNewsClick?: (news: any) => void;
+  onDamageNewsClick?: (damageNews: DamageNews) => void;
   selectedStorm?: Storm | null;
   showNewsMarkers?: boolean;
   showRescueMarkers?: boolean;
+  showWarningMarkers?: boolean;
+  showDamageMarkers?: boolean;
+  damageNewsItems?: DamageNews[];
   warningItems?: Array<{ 
     id: number; 
     lat: number; 
@@ -40,13 +45,14 @@ type MapProps = {
   onWarningClick?: (warning: any) => void;
 };
 
-export default function Map({ onMapReady, rescueRequests = [], newsItems = [], activeTab = 'news', onNewsClick, selectedStorm, showNewsMarkers = true, showRescueMarkers = true, warningItems = [], onWarningClick }: MapProps) {
+export default function Map({ onMapReady, rescueRequests = [], newsItems = [], activeTab = 'forecast', onNewsClick, onDamageNewsClick, selectedStorm, showNewsMarkers = true, showRescueMarkers = true, showWarningMarkers = true, showDamageMarkers = true, damageNewsItems = [], warningItems = [], onWarningClick }: MapProps) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const marker = useRef<mapboxgl.Marker | null>(null);
   const rescueMarkers = useRef<mapboxgl.Marker[]>([]);
   const newsMarkers = useRef<mapboxgl.Marker[]>([]);
   const warningMarkers = useRef<mapboxgl.Marker[]>([]);
+  const damageNewsMarkers = useRef<mapboxgl.Marker[]>([]);
   const [mapState, setMapState] = useState({
     lat: 21.0278,
     lng: 105.8342,
@@ -375,8 +381,8 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
     warningMarkers.current.forEach(marker => marker.remove());
     warningMarkers.current = [];
 
-    // Only show warnings when warnings tab is active
-    if (activeTab !== 'warnings' || warningItems.length === 0) return;
+    // Only show warnings when forecast tab is active and toggle is on
+    if (activeTab !== 'forecast' || !showWarningMarkers || warningItems.length === 0) return;
 
     console.log(`⚠️ Adding ${warningItems.length} warning markers to map`);
 
@@ -464,7 +470,108 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
 
       warningMarkers.current.push(warningMarker);
     });
-  }, [warningItems, activeTab, onWarningClick, mapReady]);
+  }, [warningItems, activeTab, showWarningMarkers, onWarningClick, mapReady]);
+
+  // Damage news markers effect
+  useEffect(() => {
+    if (!map.current || !mapReady) return;
+
+    // Clear existing damage news markers
+    damageNewsMarkers.current.forEach(marker => marker.remove());
+    damageNewsMarkers.current = [];
+
+    // Only show damage markers when damage tab is active and toggle is on
+    if (activeTab !== 'damage' || !showDamageMarkers || damageNewsItems.length === 0) return;
+
+    console.log(`🏗️ Adding ${damageNewsItems.length} damage news markers to map`);
+
+    damageNewsItems.forEach((news) => {
+      if (!news.lat || !news.lon) return;
+
+      // Create marker element
+      const el = document.createElement('div');
+      el.className = 'damage-news-marker';
+      el.style.width = '32px';
+      el.style.height = '32px';
+      el.style.borderRadius = '50%';
+      el.style.backgroundColor = '#ef4444';
+      el.style.border = '3px solid white';
+      el.style.boxShadow = '0 3px 10px rgba(0, 0, 0, 0.4)';
+      el.style.cursor = 'pointer';
+      el.style.display = 'flex';
+      el.style.alignItems = 'center';
+      el.style.justifyContent = 'center';
+      el.style.fontWeight = 'bold';
+      el.style.color = 'white';
+      el.style.fontSize = '16px';
+      el.innerHTML = '🏗️';
+
+      // Create popup with news preview
+      const truncatedTitle = news.title.length > 60 ? news.title.substring(0, 60) + '...' : news.title;
+      const truncatedContent = news.content.length > 100 ? news.content.substring(0, 100) + '...' : news.content;
+      
+      const popup = new mapboxgl.Popup({ 
+        offset: 25, 
+        closeButton: false,
+        className: 'damage-news-popup',
+        maxWidth: '300px'
+      }).setHTML(`
+        <div style="padding: 12px;">
+          ${news.thumbnail_url ? `
+            <img src="${news.thumbnail_url}" 
+                 style="width: 100%; height: 120px; object-fit: cover; border-radius: 6px; margin-bottom: 8px;" 
+                 alt="${truncatedTitle}" />
+          ` : ''}
+          <h3 style="margin: 0 0 8px 0; font-weight: bold; color: #ef4444; font-size: 14px;">
+            ${truncatedTitle}
+          </h3>
+          <p style="margin: 4px 0; font-size: 12px; color: #666; line-height: 1.4;">
+            ${truncatedContent}
+          </p>
+          <hr style="margin: 8px 0; border: none; border-top: 1px solid #ddd;" />
+          <p style="margin: 4px 0; font-size: 11px; color: #999;">
+            📅 ${new Date(news.published_at).toLocaleDateString('vi-VN', { 
+              year: 'numeric', 
+              month: 'short', 
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            })}
+          </p>
+          ${news.source_url ? `
+            <a href="${news.source_url}" 
+               target="_blank" 
+               rel="noopener noreferrer"
+               style="display: inline-block; margin-top: 6px; color: #06b6d4; font-size: 11px; text-decoration: none;">
+              🔗 Xem nguồn tin →
+            </a>
+          ` : ''}
+        </div>
+      `);
+
+      // Click handler
+      el.addEventListener('click', () => {
+        if (onDamageNewsClick) {
+          onDamageNewsClick(news);
+        }
+        if (map.current) {
+          map.current.flyTo({
+            center: [news.lon, news.lat],
+            zoom: 12,
+            duration: 2000,
+          });
+        }
+      });
+
+      // Create and add marker
+      const damageMarker = new mapboxgl.Marker({ element: el })
+        .setLngLat([news.lon, news.lat])
+        .setPopup(popup)
+        .addTo(map.current!);
+
+      damageNewsMarkers.current.push(damageMarker);
+    });
+  }, [damageNewsItems, activeTab, showDamageMarkers, onDamageNewsClick, mapReady]);
 
   // Zoom controls callbacks
   const handleZoomIn = useCallback(() => {

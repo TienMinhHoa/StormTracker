@@ -136,6 +136,11 @@ export default function WindLayer({
         try {
           tiffData = await loadWindDataForTimestamp(targetTimestamp);
           
+          // Check if data is valid
+          if (!tiffData || tiffData.width === 0 || tiffData.height === 0) {
+            throw new Error('Invalid or empty TIFF data');
+          }
+          
           // Convert TIFFWindData to WindData format for legacy rendering
           data = {
             u: new Float32Array(tiffData.u),

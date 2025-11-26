@@ -1,17 +1,36 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getDamageByStorm, getLatestDamageByStorm, type DamageAssessment, normalizeSources } from '../../services/damageApi';
+import { 
+  getDamageByStorm, 
+  getLatestDamageByStorm, 
+  getDamageNewsByStorm,
+  type DamageAssessment,
+  type DamageNews,
+  normalizeSources 
+} from '../../services/damageApi';
 
 type DamageTabProps = {
   stormId?: string;
   onDamageClick?: (damage: DamageAssessment) => void;
+  onDamageNewsClick?: (news: DamageNews) => void;
+  showDamageMarkers?: boolean;
+  onShowDamageMarkersChange?: (show: boolean) => void;
 };
 
-export default function DamageTab({ stormId, onDamageClick }: DamageTabProps) {
+export default function DamageTab({ 
+  stormId, 
+  onDamageClick,
+  onDamageNewsClick,
+  showDamageMarkers = true,
+  onShowDamageMarkersChange
+}: DamageTabProps) {
+  const [activeSection, setActiveSection] = useState<'overview' | 'news'>('overview');
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [damageData, setDamageData] = useState<DamageAssessment[]>([]);
+  const [damageNews, setDamageNews] = useState<DamageNews[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingNews, setLoadingNews] = useState(false);
 
   // Fetch damage data from API
   useEffect(() => {
@@ -36,9 +55,37 @@ export default function DamageTab({ stormId, onDamageClick }: DamageTabProps) {
     fetchDamage();
   }, [stormId]);
 
+  // Fetch damage news
+  useEffect(() => {
+    const fetchDamageNews = async () => {
+      if (!stormId) {
+        setDamageNews([]);
+        return;
+      }
+
+      try {
+        setLoadingNews(true);
+        const data = await getDamageNewsByStorm(stormId);
+        setDamageNews(data);
+        console.log(`✅ Loaded ${data.length} damage news items`);
+      } catch (error) {
+        console.error('Failed to fetch damage news:', error);
+        setDamageNews([]);
+      } finally {
+        setLoadingNews(false);
+      }
+    };
+
+    fetchDamageNews();
+  }, [stormId]);
+
   const handleDamageClick = (damage: DamageAssessment) => {
     setExpandedId(expandedId === damage.id ? null : damage.id);
     onDamageClick?.(damage);
+  };
+
+  const handleDamageNewsClick = (news: DamageNews) => {
+    onDamageNewsClick?.(news);
   };
 
   const formatDate = (dateString: string) => {
@@ -71,7 +118,7 @@ export default function DamageTab({ stormId, onDamageClick }: DamageTabProps) {
   const totalInjured = latestDamage?.detail.casualties.injured || 0;
   const totalEconomicLoss = latestDamage?.detail.total_economic_loss_vnd || 0;
 
-  if (loading) {
+  if (loading && activeSection === 'overview') {
     return (
       <div className="flex-1 overflow-y-auto flex items-center justify-center">
         <div className="text-center">
@@ -85,8 +132,52 @@ export default function DamageTab({ stormId, onDamageClick }: DamageTabProps) {
   return (
     <div className="flex-1 overflow-y-auto scrollbar-thin">
       <div className="px-4 py-4 space-y-4">
-        {/* Header with Summary */}
-        {latestDamage && (
+        {/* Section Toggle */}
+        <div className="flex gap-2">
+          <button
+            onClick={() => setActiveSection('overview')}
+            className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              activeSection === 'overview'
+                ? 'bg-teal-500 text-white'
+                : 'bg-[#1c2127] text-gray-400 hover:text-white'
+            }`}
+          >
+            📊 Tổng quan
+          </button>
+          <button
+            onClick={() => setActiveSection('news')}
+            className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              activeSection === 'news'
+                ? 'bg-teal-500 text-white'
+                : 'bg-[#1c2127] text-gray-400 hover:text-white'
+            }`}
+          >
+            📰 Chi tiết ({damageNews.length})
+          </button>
+        </div>
+
+        {/* Marker Toggle */}
+        {activeSection === 'news' && (
+          <div className="bg-[#1c2127] rounded-lg p-3">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showDamageMarkers}
+                onChange={(e) => onShowDamageMarkersChange?.(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-600 text-teal-500 focus:ring-teal-500 focus:ring-offset-gray-900"
+              />
+              <span className="text-sm text-gray-300">
+                Hiển thị marker thiệt hại trên bản đồ
+              </span>
+            </label>
+          </div>
+        )}
+
+        {/* Overview Section */}
+        {activeSection === 'overview' && (
+          <>
+            {/* Header with Summary */}
+            {latestDamage && (
           <div className="bg-[#1c2127] rounded-lg p-4 space-y-3">
             <h2 className="text-lg font-bold text-white mb-3">📊 Tổng quan thiệt hại</h2>
             
@@ -271,10 +362,77 @@ export default function DamageTab({ stormId, onDamageClick }: DamageTabProps) {
           })}
         </div>
 
-        {damageData.length === 0 && (
-          <div className="text-center py-8 text-gray-400">
-            <p className="text-sm">Không có dữ liệu thiệt hại</p>
-          </div>
+            {damageData.length === 0 && (
+              <div className="text-center py-8 text-gray-400">
+                <p className="text-sm">Không có dữ liệu thiệt hại</p>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Damage News Section */}
+        {activeSection === 'news' && (
+          <>
+            {loadingNews ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-500 mx-auto mb-4"></div>
+                  <p className="text-gray-400">Đang tải tin tức thiệt hại...</p>
+                </div>
+              </div>
+            ) : damageNews.length > 0 ? (
+              <div className="space-y-3">
+                {damageNews.map((news) => (
+                  <div
+                    key={news.news_id}
+                    onClick={() => handleDamageNewsClick(news)}
+                    className="bg-[#1c2127] rounded-lg overflow-hidden hover:ring-2 hover:ring-teal-500 transition-all cursor-pointer"
+                  >
+                    <div className="flex gap-3 p-3">
+                      {news.thumbnail_url && (
+                        <img
+                          src={news.thumbnail_url}
+                          alt={news.title}
+                          className="w-24 h-24 object-cover rounded"
+                        />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-white font-semibold text-sm mb-1 line-clamp-2">
+                          {news.title}
+                        </h3>
+                        <p className="text-gray-400 text-xs mb-2 line-clamp-2">
+                          {news.content}
+                        </p>
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                          <span>📅 {formatDate(news.published_at)}</span>
+                          {news.lat && news.lon && (
+                            <span>📍 {news.lat.toFixed(4)}, {news.lon.toFixed(4)}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    {news.source_url && (
+                      <div className="px-3 pb-3">
+                        <a
+                          href={news.source_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-teal-400 hover:text-teal-300 text-xs flex items-center gap-1"
+                        >
+                          🔗 Xem nguồn tin
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-400">
+                <p className="text-sm">Không có tin tức thiệt hại</p>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

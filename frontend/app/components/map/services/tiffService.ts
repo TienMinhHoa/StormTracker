@@ -170,7 +170,14 @@ async function readTIFFData(url: string): Promise<{
     // Fetch file as blob first (for Next.js public folder)
     const response = await fetch(url);
     if (!response.ok) {
-      throw new Error(`Failed to fetch TIFF: ${response.status} ${response.statusText}`);
+      console.warn(`⚠️ Failed to fetch TIFF: ${response.status} ${response.statusText} - URL: ${url}`);
+      // Return empty data instead of throwing
+      return {
+        data: new Float32Array(0),
+        width: 0,
+        height: 0,
+        bbox: [-180, -85, 180, 85]
+      };
     }
     
     const blob = await response.blob();
@@ -247,6 +254,7 @@ export async function loadWindDataFromTIFF(
         // Try to read both bands from same file
         const response = await fetch(uFile);
         if (!response.ok) {
+          console.warn(`⚠️ Failed to fetch TIFF: ${response.status} - URL: ${uFile}`);
           throw new Error(`Failed to fetch TIFF: ${response.status}`);
         }
         const blob = await response.blob();
@@ -370,7 +378,14 @@ export async function loadWindDataFromTIFF(
     };
   } catch (error) {
     console.error('❌ Error loading wind data from TIFF:', error);
-    throw error;
+    // Return empty wind data instead of throwing
+    return {
+      u: new Float32Array(0),
+      v: new Float32Array(0),
+      width: 0,
+      height: 0,
+      bbox: [-180, -85, 180, 85]
+    };
   }
 }
 

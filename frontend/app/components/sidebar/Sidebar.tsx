@@ -1,20 +1,21 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { NewsTab, NewsItem } from '../news';
+import { NewsItem } from '../news';
+import { ForecastTab } from '../forecast';
 import { RescueTab, RescueRequest } from '../rescue';
 import { ChatbotTab } from '../chatbot';
 import { DamageTab } from '../damage';
-import { WarningView } from '../warnings';
 import { SettingsPanel } from '../settings';
 import { getStorms, type Storm } from '../../services/stormApi';
 
-type Tab = 'news' | 'rescue' | 'damage' | 'warnings' | 'chatbot' | 'settings';
+type Tab = 'forecast' | 'rescue' | 'damage' | 'chatbot' | 'settings';
 
 type SidebarProps = {
   onNewsClick?: (news: NewsItem) => void;
   onRescueClick?: (rescue: RescueRequest) => void;
   onDamageClick?: (damage: any) => void;
+  onDamageNewsClick?: (damageNews: any) => void;
   onWarningClick?: (warning: any) => void;
   onTabChange?: (tab: Tab) => void;
   onStormChange?: (storm: Storm | null) => void;
@@ -27,12 +28,16 @@ type SidebarProps = {
   onShowRescueMarkersChange?: (show: boolean) => void;
   showWarningMarkers?: boolean;
   onShowWarningMarkersChange?: (show: boolean) => void;
+  showDamageMarkers?: boolean;
+  onShowDamageMarkersChange?: (show: boolean) => void;
+  onShowRescueForm?: () => void;
 };
 
 export default function Sidebar({
   onNewsClick,
   onRescueClick,
   onDamageClick,
+  onDamageNewsClick,
   onWarningClick,
   onTabChange,
   onStormChange,
@@ -44,9 +49,12 @@ export default function Sidebar({
   showRescueMarkers = true,
   onShowRescueMarkersChange,
   showWarningMarkers = true,
-  onShowWarningMarkersChange
+  onShowWarningMarkersChange,
+  showDamageMarkers = true,
+  onShowDamageMarkersChange,
+  onShowRescueForm
 }: SidebarProps) {
-  const [activeTab, setActiveTab] = useState<'news' | 'rescue' | 'damage' | 'warnings' | 'chatbot' | 'settings'>('news');
+  const [activeTab, setActiveTab] = useState<'forecast' | 'rescue' | 'damage' | 'chatbot' | 'settings'>('forecast');
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [storms, setStorms] = useState<Storm[]>([]);
@@ -397,15 +405,15 @@ export default function Sidebar({
 
             {/* Tab Navigation */}
             <div className="flex px-4 py-3">
-              <div className="grid grid-cols-5 h-10 flex-1 items-center justify-center rounded-lg bg-[#1c2127] p-1 gap-1">
+              <div className="grid grid-cols-4 h-10 flex-1 items-center justify-center rounded-lg bg-[#1c2127] p-1 gap-1">
                 <button
-                  onClick={() => handleTabChange('news')}
-                  className={`flex h-full items-center justify-center rounded-lg px-1 text-xs font-medium transition-all ${activeTab === 'news'
+                  onClick={() => handleTabChange('forecast')}
+                  className={`flex h-full items-center justify-center rounded-lg px-1 text-xs font-medium transition-all ${activeTab === 'forecast'
                       ? 'bg-[#101922] shadow-sm text-white'
                       : 'text-gray-400 hover:text-gray-300'
                     }`}
                 >
-                  Tin tức
+                  Dự báo
                 </button>
                 <button
                   onClick={() => handleTabChange('rescue')}
@@ -426,15 +434,6 @@ export default function Sidebar({
                   Thiệt hại
                 </button>
                 <button
-                  onClick={() => handleTabChange('warnings')}
-                  className={`flex h-full items-center justify-center rounded-lg px-1 text-xs font-medium transition-all ${activeTab === 'warnings'
-                      ? 'bg-[#101922] shadow-sm text-white'
-                      : 'text-gray-400 hover:text-gray-300'
-                    }`}
-                >
-                  ⚠️
-                </button>
-                <button
                   onClick={() => handleTabChange('chatbot')}
                   className={`flex h-full items-center justify-center rounded-lg px-1 text-xs font-medium transition-all ${activeTab === 'chatbot'
                       ? 'bg-[#101922] shadow-sm text-white'
@@ -448,13 +447,17 @@ export default function Sidebar({
 
             {/* Tab Content */}
             <div className="flex-1 overflow-hidden flex flex-col">
-              {activeTab === 'news' && (
-                <NewsTab 
+              {activeTab === 'forecast' && (
+                <ForecastTab 
                   onNewsClick={onNewsClick} 
                   selectedNewsId={selectedNewsId} 
                   stormId={currentStorm?.storm_id}
                   showNewsMarkers={showNewsMarkers}
                   onShowNewsMarkersChange={onShowNewsMarkersChange}
+                  onWarningClick={onWarningClick}
+                  selectedWarning={selectedWarning}
+                  showWarningMarkers={showWarningMarkers}
+                  onShowWarningMarkersChange={onShowWarningMarkersChange}
                 />
               )}
               {activeTab === 'rescue' && (
@@ -463,10 +466,18 @@ export default function Sidebar({
                   stormId={currentStorm?.storm_id}
                   showRescueMarkers={showRescueMarkers}
                   onShowRescueMarkersChange={onShowRescueMarkersChange}
+                  onShowRescueForm={onShowRescueForm}
                 />
               )}
-              {activeTab === 'damage' && <DamageTab stormId={currentStorm?.storm_id} onDamageClick={onDamageClick} />}
-              {activeTab === 'warnings' && <WarningView onWarningClick={onWarningClick} externalSelectedWarning={selectedWarning} />}
+              {activeTab === 'damage' && (
+                <DamageTab 
+                  stormId={currentStorm?.storm_id} 
+                  onDamageClick={onDamageClick}
+                  onDamageNewsClick={onDamageNewsClick}
+                  showDamageMarkers={showDamageMarkers}
+                  onShowDamageMarkersChange={onShowDamageMarkersChange}
+                />
+              )}
               {activeTab === 'chatbot' && <ChatbotTab />}
               {activeTab === 'settings' && (
                 <SettingsPanel
@@ -476,7 +487,7 @@ export default function Sidebar({
                   onShowRescueMarkersChange={onShowRescueMarkersChange || (() => {})}
                   showWarningMarkers={showWarningMarkers}
                   onShowWarningMarkersChange={onShowWarningMarkersChange || (() => {})}
-                  onClose={() => setActiveTab('news')}
+                  onClose={() => setActiveTab('forecast')}
                 />
               )}
             </div>

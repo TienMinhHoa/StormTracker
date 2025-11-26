@@ -171,3 +171,53 @@ export async function getAllDamage(
     return [];
   }
 }
+
+// Interface for damage news items (from news API)
+export interface DamageNews {
+  news_id: number;
+  storm_id: string;
+  title: string;
+  content: string;
+  source_url: string;
+  published_at: string;
+  lat: number;
+  lon: number;
+  thumbnail_url: string;
+  category: string;
+}
+
+export async function getDamageNewsByStorm(
+  stormId: string,
+  skip: number = 0,
+  limit: number = 100
+): Promise<DamageNews[]> {
+  try {
+    // Fetch all news for the storm
+    const response = await fetch(
+      `/api/news/storm/${stormId}?skip=${skip}&limit=${limit}`,
+      {
+        method: 'GET',
+        headers: {
+          'accept': 'application/json',
+        },
+      }
+    );
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch news: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    
+    // Filter only damage-related news (category: Thiet_hai_Hau_qua)
+    const damageNews = data.filter((news: DamageNews) => 
+      news.category === 'Thiet_hai_Hau_qua'
+    );
+    
+    console.log(`✅ Filtered ${damageNews.length} damage news from ${data.length} total news`);
+    return damageNews;
+  } catch (error) {
+    console.error(`❌ Error fetching damage news for storm ${stormId}:`, error);
+    return [];
+  }
+}

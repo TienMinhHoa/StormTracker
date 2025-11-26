@@ -65,6 +65,23 @@ class NewsSourceService:
             )
         return await news_sources.get_news_by_storm(session, storm_id, skip, limit)
     
+    async def get_news_by_storm_and_category(
+        self,
+        session: AsyncSession,
+        storm_id: str,
+        category: str,
+        skip: int = 0,
+        limit: int = 100
+    ) -> List[NewsSourceDB]:
+        # Verify storm exists
+        storm = await storms.get_storm_by_id(session, storm_id)
+        if not storm:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Storm with id {storm_id} not found"
+            )
+        return await news_sources.get_news_by_storm_and_category(session, storm_id, category, skip, limit)
+    
     async def get_all_news(
         self,
         session: AsyncSession,

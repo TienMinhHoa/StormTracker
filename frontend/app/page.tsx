@@ -4,14 +4,15 @@ import { useRef, useState, useEffect } from 'react';
 import { Map } from './components/map';
 import { Sidebar } from './components/sidebar';
 import { NewsItem } from './components/news';
-import { RescueRequest, rescueRequests } from './components/rescue';
+import { RescueRequest, rescueRequests, RescueRequestForm } from './components/rescue';
 import type { Storm } from './services/stormApi';
 import { getNewsByStorm, type News } from './services/newsApi';
 import { getWarnings, type Warning } from './services/warningApi';
+import { getDamageNewsByStorm, type DamageNews } from './services/damageApi';
 
 export default function Home() {
   const flyToLocationRef = useRef<((lng: number, lat: number, zoom?: number) => void) | null>(null);
-  const [activeTab, setActiveTab] = useState<'news' | 'rescue' | 'damage' | 'warnings' | 'chatbot'>('news');
+  const [activeTab, setActiveTab] = useState<'forecast' | 'rescue' | 'damage' | 'chatbot'>('forecast');
   const [selectedNewsId, setSelectedNewsId] = useState<number | null>(null);
   const [selectedStorm, setSelectedStorm] = useState<Storm | null>(null); // Will be set by Sidebar when storms load
   const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
@@ -22,6 +23,10 @@ export default function Home() {
   const [warningItems, setWarningItems] = useState<Warning[]>([]);
   const [loadingWarnings, setLoadingWarnings] = useState(false);
   const [selectedWarning, setSelectedWarning] = useState<Warning | null>(null);
+  const [showDamageMarkers, setShowDamageMarkers] = useState(true); // Default to true
+  const [damageNewsItems, setDamageNewsItems] = useState<DamageNews[]>([]);
+  const [loadingDamageNews, setLoadingDamageNews] = useState(false);
+  const [showRescueForm, setShowRescueForm] = useState(false);
 
   // Fetch news when selectedStorm changes
   useEffect(() => {
@@ -70,10 +75,10 @@ export default function Home() {
     fetchNews();
   }, [selectedStorm]);
 
-  // Fetch warnings when warnings tab is active
+  // Fetch warnings when forecast tab is active
   useEffect(() => {
     const fetchWarnings = async () => {
-      if (activeTab !== 'warnings' || !showWarningMarkers) {
+      if (activeTab !== 'forecast' || !showWarningMarkers) {
         setWarningItems([]);
         return;
       }
@@ -95,14 +100,39 @@ export default function Home() {
     fetchWarnings();
   }, [activeTab, showWarningMarkers]);
 
+  // Fetch damage news when damage tab is active
+  useEffect(() => {
+    const fetchDamageNews = async () => {
+      if (activeTab !== 'damage' || !selectedStorm?.storm_id || !showDamageMarkers) {
+        setDamageNewsItems([]);
+        return;
+      }
+
+      try {
+        setLoadingDamageNews(true);
+        console.log('🏗️ Fetching damage news for map...');
+        const data = await getDamageNewsByStorm(selectedStorm.storm_id);
+        setDamageNewsItems(data);
+        console.log(`✅ Loaded ${data.length} damage news for map`);
+      } catch (error) {
+        console.error('❌ Failed to load damage news for map:', error);
+        setDamageNewsItems([]);
+      } finally {
+        setLoadingDamageNews(false);
+      }
+    };
+
+    fetchDamageNews();
+  }, [activeTab, selectedStorm, showDamageMarkers]);
+
   const handleMapReady = (flyToLocation: (lng: number, lat: number, zoom?: number) => void) => {
     flyToLocationRef.current = flyToLocation;
   };
 
-  const handleTabChange = (tab: 'news' | 'rescue' | 'damage' | 'warnings' | 'chatbot' | 'settings') => {
+  const handleTabChange = (tab: 'forecast' | 'rescue' | 'damage' | 'chatbot' | 'settings') => {
     setActiveTab(tab);
     // Clear selected news when changing tabs
-    if (tab !== 'news') {
+    if (tab !== 'forecast') {
       setSelectedNewsId(null);
     }
   };
@@ -131,9 +161,9 @@ export default function Home() {
     // Set selected news id to trigger detail view
     setSelectedNewsId(news.id);
 
-    // Make sure we're on news tab
-    if (activeTab !== 'news') {
-      setActiveTab('news');
+    // Make sure we're on forecast tab
+    if (activeTab !== 'forecast') {
+      setActiveTab('forecast');
     }
 
     // Zoom to news location
@@ -159,9 +189,9 @@ export default function Home() {
     // Set selected warning to trigger expand in sidebar
     setSelectedWarning(warning);
 
-    // Make sure we're on warnings tab
-    if (activeTab !== 'warnings') {
-      setActiveTab('warnings');
+    // Make sure we're on forecast tab
+    if (activeTab !== 'forecast') {
+      setActiveTab('forecast');
     }
 
     // Zoom to warning location
@@ -170,12 +200,49 @@ export default function Home() {
     }
   };
 
+  const handleDamageNewsClick = (damageNews: DamageNews) => {
+    console.log('🏗️ Damage news clicked:', damageNews.title);
+
+    // Make sure we're on damage tab
+    if (activeTab !== 'damage') {
+      setActiveTab('damage');
+    }
+
+    // Zoom to damage location
+    if (flyToLocationRef.current && damageNews.lat && damageNews.lon) {
+      flyToLocationRef.current(damageNews.lon, damageNews.lat, 12);
+    }
+  };
+
   return (
     <main className="relative h-screen w-full bg-[#101922] overflow-hidden">
+      {/* Fullscreen Popup Modal for Rescue Form */}
+      {showRescueForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-[#1a1f2e] rounded-lg shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto m-4">
+            <div className="sticky top-0 bg-[#1a1f2e] border-b border-gray-700 px-6 py-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-white">Gửi yêu cầu cứu hộ</h2>
+              <button
+                onClick={() => setShowRescueForm(false)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-6">
+              <RescueRequestForm onBack={() => setShowRescueForm(false)} />
+            </div>
+          </div>
+        </div>
+      )}
+
       <Sidebar
         onNewsClick={handleNewsClick}
         onRescueClick={handleRescueClick}
         onDamageClick={handleDamageClick}
+        onDamageNewsClick={handleDamageNewsClick}
         onWarningClick={handleWarningClick}
         onTabChange={handleTabChange}
         onStormChange={handleStormChange}
@@ -188,6 +255,9 @@ export default function Home() {
         onShowRescueMarkersChange={setShowRescueMarkers}
         showWarningMarkers={showWarningMarkers}
         onShowWarningMarkersChange={setShowWarningMarkers}
+        showDamageMarkers={showDamageMarkers}
+        onShowDamageMarkersChange={setShowDamageMarkers}
+        onShowRescueForm={() => setShowRescueForm(true)}
       />
       <div className="absolute inset-0 md:left-0">
         <Map
@@ -195,12 +265,15 @@ export default function Home() {
           rescueRequests={rescueRequests}
           newsItems={newsItems}
           warningItems={warningItems}
+          damageNewsItems={damageNewsItems}
           activeTab={activeTab}
           onNewsClick={handleNewsClick}
           onWarningClick={handleWarningClick}
+          onDamageNewsClick={handleDamageNewsClick}
           selectedStorm={selectedStorm}
           showNewsMarkers={showNewsMarkers}
           showRescueMarkers={showRescueMarkers}
+          showDamageMarkers={showDamageMarkers}
         />
       </div>
     </main>

@@ -56,6 +56,23 @@ async def get_news_by_storm(
     return news_list
 
 
+@router.get("/storm/{storm_id}/damage", response_model=List[NewsSourceResponse])
+async def get_damage_news_by_storm(
+    storm_id: str,
+    pagination: Annotated[PaginationRequest, Depends()],
+    session: DBSession = None,
+):
+    """Get damage-related news for a specific storm (category: Thiet_hai_Hau_qua)"""
+    news_list = await service.get_news_by_storm_and_category(
+        session=session,
+        storm_id=storm_id,
+        category="Thiet_hai_Hau_qua",
+        skip=pagination.skip,
+        limit=pagination.limit
+    )
+    return news_list
+
+
 @router.get("/{news_id}", response_model=NewsSourceResponse)
 async def get_news(
     news_id: int = Path(...),
