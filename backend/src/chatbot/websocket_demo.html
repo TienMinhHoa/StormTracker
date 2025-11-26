@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Storm Tracker Chatbot - WebSocket Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .chat-container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            width: 100%;
+            max-width: 800px;
+            height: 90vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .chat-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 20px 20px 0 0;
+        }
+
+        .chat-header h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+
+        .connection-status {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            margin-top: 10px;
+        }
+
+        .status-connected {
+            background: #10b981;
+        }
+
+        .status-disconnected {
+            background: #ef4444;
+        }
+
+        .status-connecting {
+            background: #f59e0b;
+        }
+
+        .storm-id-input {
+            padding: 15px;
+            background: #f3f4f6;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .storm-id-input input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .messages-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #f9fafb;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message-user {
+            text-align: right;
+        }
+
+        .message-bot {
+            text-align: left;
+        }
+
+        .message-status {
+            text-align: center;
+            color: #6b7280;
+            font-size: 12px;
+            font-style: italic;
+        }
+
+        .message-content {
+            display: inline-block;
+            padding: 12px 18px;
+            border-radius: 18px;
+            max-width: 70%;
+            word-wrap: break-word;
+        }
+
+        .message-user .message-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .message-bot .message-content {
+            background: white;
+            color: #1f2937;
+            border: 1px solid #e5e7eb;
+        }
+
+        .message-error .message-content {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+        }
+
+        .message-timestamp {
+            font-size: 10px;
+            color: #9ca3af;
+            margin-top: 5px;
+        }
+
+        .input-container {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            gap: 10px;
+        }
+
+        .input-container input {
+            flex: 1;
+            padding: 12px 18px;
+            border: 2px solid #e5e7eb;
+            border-radius: 25px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        .input-container input:focus {
+            border-color: #667eea;
+        }
+
+        .input-container button {
+            padding: 12px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .input-container button:hover {
+            transform: scale(1.05);
+        }
+
+        .input-container button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .typing-indicator {
+            display: none;
+            padding: 10px;
+            text-align: left;
+        }
+
+        .typing-indicator.active {
+            display: block;
+        }
+
+        .typing-dots {
+            display: inline-block;
+            padding: 12px 18px;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 18px;
+        }
+
+        .typing-dots span {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #9ca3af;
+            margin: 0 2px;
+            animation: typing 1.4s infinite;
+        }
+
+        .typing-dots span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-dots span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes typing {
+            0%, 60%, 100% {
+                transform: translateY(0);
+            }
+            30% {
+                transform: translateY(-10px);
+            }
+        }
+
+        .action-buttons {
+            padding: 0 20px 10px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .action-buttons button {
+            padding: 8px 16px;
+            background: #f3f4f6;
+            border: 1px solid #d1d5db;
+            border-radius: 15px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .action-buttons button:hover {
+            background: #e5e7eb;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <h1>🌪️ Storm Tracker AI Assistant</h1>
+            <span class="connection-status status-disconnected" id="connectionStatus">
+                Disconnected
+            </span>
+        </div>
+
+        <div class="storm-id-input">
+            <input 
+                type="text" 
+                id="stormIdInput" 
+                placeholder="Enter Storm ID (e.g., STORM001)" 
+                value="STORM001"
+            >
+        </div>
+
+        <div class="messages-container" id="messagesContainer">
+            <div class="message message-status">
+                <div class="message-content">
+                    Click "Connect" to start chatting with the AI assistant
+                </div>
+            </div>
+        </div>
+
+        <div class="typing-indicator" id="typingIndicator">
+            <div class="typing-dots">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </div>
+
+        <div class="action-buttons">
+            <button onclick="connectWebSocket()">Connect</button>
+            <button onclick="disconnectWebSocket()">Disconnect</button>
+            <button onclick="resetConversation()">Reset Chat</button>
+        </div>
+
+        <div class="input-container">
+            <input 
+                type="text" 
+                id="messageInput" 
+                placeholder="Type your message..." 
+                disabled
+                onkeypress="handleKeyPress(event)"
+            >
+            <button onclick="sendMessage()" id="sendButton" disabled>Send</button>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let isConnected = false;
+
+        const messagesContainer = document.getElementById('messagesContainer');
+        const messageInput = document.getElementById('messageInput');
+        const sendButton = document.getElementById('sendButton');
+        const connectionStatus = document.getElementById('connectionStatus');
+        const typingIndicator = document.getElementById('typingIndicator');
+        const stormIdInput = document.getElementById('stormIdInput');
+
+        function updateConnectionStatus(status, text) {
+            connectionStatus.className = `connection-status status-${status}`;
+            connectionStatus.textContent = text;
+        }
+
+        function connectWebSocket() {
+            if (ws && isConnected) {
+                addMessage('status', 'Already connected');
+                return;
+            }
+
+            updateConnectionStatus('connecting', 'Connecting...');
+            
+            ws = new WebSocket('ws://localhost:8000/chatbot/ws');
+
+            ws.onopen = () => {
+                isConnected = true;
+                updateConnectionStatus('connected', 'Connected');
+                messageInput.disabled = false;
+                sendButton.disabled = false;
+                console.log('WebSocket connected');
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                handleServerMessage(data);
+            };
+
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                addMessage('error', 'Connection error occurred');
+            };
+
+            ws.onclose = () => {
+                isConnected = false;
+                updateConnectionStatus('disconnected', 'Disconnected');
+                messageInput.disabled = true;
+                sendButton.disabled = true;
+                typingIndicator.classList.remove('active');
+                console.log('WebSocket disconnected');
+            };
+        }
+
+        function disconnectWebSocket() {
+            if (ws) {
+                ws.close();
+                ws = null;
+                addMessage('status', 'Disconnected from server');
+            }
+        }
+
+        function handleServerMessage(data) {
+            const type = data.type;
+
+            if (type === 'status') {
+                if (data.status === 'connected') {
+                    addMessage('status', data.message);
+                } else if (data.status === 'processing') {
+                    typingIndicator.classList.add('active');
+                } else if (data.status === 'ready') {
+                    addMessage('status', data.message);
+                }
+            } else if (type === 'response') {
+                typingIndicator.classList.remove('active');
+                addMessage('bot', data.response, data.timestamp);
+            } else if (type === 'error') {
+                typingIndicator.classList.remove('active');
+                addMessage('error', data.error, data.timestamp);
+            }
+
+            scrollToBottom();
+        }
+
+        function sendMessage() {
+            const message = messageInput.value.trim();
+            if (!message || !isConnected) return;
+
+            const stormId = stormIdInput.value.trim() || 'STORM001';
+
+            addMessage('user', message);
+            
+            ws.send(JSON.stringify({
+                type: 'message',
+                message: message,
+                storm_id: stormId
+            }));
+
+            messageInput.value = '';
+            scrollToBottom();
+        }
+
+        function resetConversation() {
+            if (!isConnected) {
+                addMessage('error', 'Not connected to server');
+                return;
+            }
+
+            ws.send(JSON.stringify({
+                type: 'reset'
+            }));
+
+            // Clear local messages
+            messagesContainer.innerHTML = '';
+            addMessage('status', 'Conversation reset');
+        }
+
+        function addMessage(type, content, timestamp = null) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message message-${type}`;
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            contentDiv.textContent = content;
+
+            messageDiv.appendChild(contentDiv);
+
+            if (timestamp) {
+                const timeDiv = document.createElement('div');
+                timeDiv.className = 'message-timestamp';
+                timeDiv.textContent = new Date(timestamp).toLocaleTimeString();
+                messageDiv.appendChild(timeDiv);
+            }
+
+            messagesContainer.appendChild(messageDiv);
+            scrollToBottom();
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        function scrollToBottom() {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // Auto-connect on page load
+        window.addEventListener('load', () => {
+            setTimeout(connectWebSocket, 500);
+        });
+    </script>
+</body>
+</html>

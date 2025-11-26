@@ -10,7 +10,7 @@ from src.storms.router import router as storms_router
 from src.news.router import router as news_router
 from src.damage.router import router as damage_router
 from src.rescue.router import router as rescue_router
-from src.warnings.router import router as warnings_router
+from src.chatbot.router import router as chatbot_router
 
 from src.schemas import HealthResponse
 START_TIME = datetime.now(timezone.utc)
@@ -32,7 +32,7 @@ app.include_router(storms_router)
 app.include_router(news_router)
 app.include_router(damage_router)
 app.include_router(rescue_router)
-app.include_router(warnings_router)
+app.include_router(chatbot_router)
 
 
 @app.get(
