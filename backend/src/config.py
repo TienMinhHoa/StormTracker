@@ -10,6 +10,11 @@ class Config(BaseSettings):
     APP_VERSION: str = "1.0.0"
     GOOGLE_API_KEY: str
     SERPAPI_API_KEY: str
+    
+    # Qdrant configuration
+    QDRANT_URL: str = "localhost"
+    QDRANT_API_KEY: str = ""
+    
     class Config:
         env_file = os.getenv("ENV_FILE", ".env")
         env_file_encoding = "utf-8"

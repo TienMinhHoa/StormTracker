@@ -15,6 +15,10 @@ dependencies = [
     "httpx>=0.28.1",
     "langchain-google-genai>=2.0.8",
     "langchain==0.3.27",
+    "langgraph>=0.2.59",
+    "langchain-community>=0.3.14",
+    "langchain-qdrant>=0.2.0",
+    "qdrant-client>=1.12.1",
     "opencage>=3.2.0",
     "pandas>=2.3.3",
     "psycopg2-binary>=2.9.11",
@@ -22,4 +26,6 @@ dependencies = [
     "serpapi>=0.1.5",
     "sqlalchemy>=2.0.44",
     "tqdm>=4.67.1",
+    "websockets>=13.1",
+    "uvicorn>=0.38.0",
 ]
