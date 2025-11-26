@@ -218,3 +218,37 @@ class ForecastResponse(BaseModel):
     nchmf: Optional[dict] = None
     jtwc: Optional[dict] = None
     created_at: datetime
+
+
+# LiveTracking Schemas
+class LiveTrackingCreate(BaseModel):
+    live_id: str
+    storm_id: Optional[str] = None
+    timestamp: str  # Format: "DD-MM-YYYY HH:MM"
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    status: Optional[str] = None
+    data: Optional[dict] = None
+
+
+class LiveTrackingUpdate(BaseModel):
+    storm_id: Optional[str] = None
+    timestamp: Optional[str] = None  # Format: "DD-MM-YYYY HH:MM"
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    status: Optional[str] = None
+    data: Optional[dict] = None
+
+
+class LiveTrackingResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
+    tracking_id: int
+    live_id: str
+    storm_id: Optional[str] = None
+    timestamp: datetime
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    status: Optional[str] = None
+    data: Optional[dict] = None
+    created_at: datetime

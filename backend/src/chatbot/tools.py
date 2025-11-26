@@ -139,9 +139,9 @@ async def create_rescue_request(
     """
     # Import here to avoid circular dependency
     from src.rescue.model import rescue_requests
-    from src.database import SessionLocal
+    from src.database import AsyncSessionLocal
     
-    async with SessionLocal() as session:
+    async with AsyncSessionLocal() as session:
         try:
             # Create rescue request in database
             request = await rescue_requests.create_rescue_request(
@@ -222,5 +222,14 @@ if __name__ == "__main__":
         print("RAG Search Result:")
         print(rag_result)
 
+        # Test creating rescue request
+        rescue_result = await create_rescue_request(
+            storm_id="NOWLIVE1234",
+            name="Nguyễn Văn A",
+            phone="0123456789",
+            address="123 Đường ABC",
+            priority=1,
+            note="Nhà bị ngập nặng, có người già"
+        )
 
     asyncio.run(test_tools())

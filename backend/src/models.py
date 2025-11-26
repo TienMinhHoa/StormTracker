@@ -144,3 +144,19 @@ class Forecast(Base):
     created_at = Column(DateTime, server_default=func.now())
 
     storm = relationship("Storm", back_populates="forecasts")
+
+
+class LiveTracking(Base):
+    __tablename__ = "live_tracking"
+
+    tracking_id = Column(Integer, primary_key=True, autoincrement=True)
+    live_id = Column(String, nullable=False, index=True)  # e.g., NOWLIVE1234
+    storm_id = Column(String, ForeignKey("storms.storm_id"), nullable=True)
+    timestamp = Column(DateTime, nullable=False)
+    lat = Column(Float)
+    lon = Column(Float)
+    status = Column(String)  # active, inactive, warning, etc.
+    data = Column(JSON)  # Additional live data in JSON format
+    created_at = Column(DateTime, server_default=func.now())
+
+    storm = relationship("Storm")
