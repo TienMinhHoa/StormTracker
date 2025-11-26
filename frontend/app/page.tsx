@@ -9,6 +9,7 @@ import type { Storm } from './services/stormApi';
 import { getNewsByStorm, type News } from './services/newsApi';
 import { getWarnings, type Warning } from './services/warningApi';
 import { getDamageNewsByStorm, type DamageNews } from './services/damageApi';
+import { getRescueRequestsByStorm, type RescueRequestResponse } from './services/rescueApi';
 
 export default function Home() {
   const flyToLocationRef = useRef<((lng: number, lat: number, zoom?: number) => void) | null>(null);
@@ -28,6 +29,44 @@ export default function Home() {
   const [damageNewsItems, setDamageNewsItems] = useState<DamageNews[]>([]);
   const [loadingDamageNews, setLoadingDamageNews] = useState(false);
   const [showRescueForm, setShowRescueForm] = useState(false);
+  const [rescueRequests, setRescueRequests] = useState<RescueRequestResponse[]>([]);
+  const [loadingRescueRequests, setLoadingRescueRequests] = useState(false);
+
+  // Request location permission on first visit
+  useEffect(() => {
+    const hasRequestedLocation = localStorage.getItem('locationPermissionRequested');
+    
+    if (!hasRequestedLocation && navigator.geolocation) {
+      // Mark as requested to avoid asking again
+      localStorage.setItem('locationPermissionRequested', 'true');
+      
+      // Request location permission
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          console.log('✅ Location permission granted:', position.coords);
+          // Optionally zoom to user location
+          if (flyToLocationRef.current) {
+            setTimeout(() => {
+              flyToLocationRef.current?.(
+                position.coords.longitude,
+                position.coords.latitude,
+                5
+              );
+            }, 1000); // Small delay to ensure map is ready
+          }
+        },
+        (error) => {
+          console.log('⚠️ Location permission denied or error:', error.message);
+          // Don't show alert, just log - user can manually request later
+        },
+        {
+          enableHighAccuracy: false,
+          timeout: 5000,
+          maximumAge: 0, // Force fresh location
+        }
+      );
+    }
+  }, []); // Run only once on mount
 
   // Fetch news when selectedStorm changes
   useEffect(() => {
@@ -126,6 +165,31 @@ export default function Home() {
     fetchDamageNews();
   }, [activeTab, selectedStorm, showDamageMarkers]);
 
+  // Fetch rescue requests when rescue tab is active
+  useEffect(() => {
+    const fetchRescueRequests = async () => {
+      if (activeTab !== 'rescue' || !selectedStorm?.storm_id || !showRescueMarkers) {
+        setRescueRequests([]);
+        return;
+      }
+
+      try {
+        setLoadingRescueRequests(true);
+        console.log('🚨 Fetching rescue requests for map...');
+        const data = await getRescueRequestsByStorm(selectedStorm.storm_id, 0, 100);
+        setRescueRequests(data);
+        console.log(`✅ Loaded ${data.length} rescue requests for map`);
+      } catch (error) {
+        console.error('❌ Failed to load rescue requests for map:', error);
+        setRescueRequests([]);
+      } finally {
+        setLoadingRescueRequests(false);
+      }
+    };
+
+    fetchRescueRequests();
+  }, [activeTab, selectedStorm, showRescueMarkers]);
+
   const handleMapReady = (flyToLocation: (lng: number, lat: number, zoom?: number) => void) => {
     flyToLocationRef.current = flyToLocation;
   };
@@ -152,7 +216,7 @@ export default function Home() {
 
     // Zoom to damage location
     if (flyToLocationRef.current && damage.lat && damage.lon) {
-      flyToLocationRef.current(damage.lon, damage.lat, 10);
+      flyToLocationRef.current(damage.lon, damage.lat, 5);
     }
   };
 
@@ -170,7 +234,7 @@ export default function Home() {
     // Zoom to news location
     if (flyToLocationRef.current && news.coordinates && Array.isArray(news.coordinates)) {
       const [lng, lat] = news.coordinates;
-      flyToLocationRef.current(lng, lat, 10);
+      flyToLocationRef.current(lng, lat, 5);
     }
   };
 
@@ -180,7 +244,7 @@ export default function Home() {
     // Zoom to rescue location
     if (flyToLocationRef.current && rescue.coordinates && Array.isArray(rescue.coordinates)) {
       const [lng, lat] = rescue.coordinates;
-      flyToLocationRef.current(lng, lat, 12);
+      flyToLocationRef.current(lng, lat, 6.5);
     }
   };
 
@@ -197,7 +261,7 @@ export default function Home() {
 
     // Zoom to warning location
     if (flyToLocationRef.current && warning.lat && warning.lon) {
-      flyToLocationRef.current(warning.lon, warning.lat, 11);
+      flyToLocationRef.current(warning.lon, warning.lat, 6.5);
     }
   };
 
@@ -211,7 +275,7 @@ export default function Home() {
 
     // Zoom to damage location
     if (flyToLocationRef.current && damageNews.lat && damageNews.lon) {
-      flyToLocationRef.current(damageNews.lon, damageNews.lat, 12);
+      flyToLocationRef.current(damageNews.lon, damageNews.lat, 6.5);
     }
   };
 
@@ -233,7 +297,10 @@ export default function Home() {
               </button>
             </div>
             <div className="p-6">
-              <RescueRequestForm onBack={() => setShowRescueForm(false)} />
+              <RescueRequestForm 
+                onBack={() => setShowRescueForm(false)} 
+                stormId={selectedStorm?.storm_id}
+              />
             </div>
           </div>
         </div>
@@ -264,7 +331,24 @@ export default function Home() {
       <div className="absolute inset-0 md:left-0">
         <Map
           onMapReady={handleMapReady}
-          rescueRequests={rescueRequests}
+          rescueRequests={rescueRequests.map(r => ({
+            id: r.request_id,
+            name: r.name,
+            phone: r.phone,
+            coordinates: [r.lon, r.lat] as [number, number],
+            address: r.address,
+            category: r.people_detail?.category || 'other',
+            // If status is completed or safe_reported, always set urgency to 'low'
+            urgency: (r.status === 'completed' || r.status === 'safe_reported') ? 'low' :
+                    (r.priority <= 1 ? 'critical' : r.priority <= 2 ? 'high' : r.priority <= 3 ? 'medium' : 'low'),
+            numberOfPeople: r.people_detail?.numberOfPeople || 1,
+            description: r.note || 'Không có mô tả',
+            status: r.status as 'pending' | 'in-progress' | 'completed' | 'safe_reported',
+            timestamp: new Date(r.created_at).toLocaleString('vi-VN'),
+            priority: r.priority,
+            verified: r.verified,
+            note: r.note,
+          }))}
           newsItems={newsItems}
           warningItems={warningItems}
           damageNewsItems={damageNewsItems}
@@ -277,6 +361,23 @@ export default function Home() {
           showRescueMarkers={showRescueMarkers}
           showWarningMarkers={showWarningMarkers}
           showDamageMarkers={showDamageMarkers}
+          onRescueRequestUpdate={async (requestId: number, status: 'completed' | 'safe_reported') => {
+            try {
+              const { updateRescueRequest } = await import('./services/rescueApi');
+              // Update status and priority to 5 (not urgent) when completed or safe_reported
+              await updateRescueRequest(requestId, { 
+                status,
+                priority: 5 // Set to not urgent when completed or safe
+              });
+              // Refresh rescue requests
+              if (selectedStorm?.storm_id && activeTab === 'rescue' && showRescueMarkers) {
+                const data = await getRescueRequestsByStorm(selectedStorm.storm_id, 0, 100);
+                setRescueRequests(data);
+              }
+            } catch (error) {
+              console.error('Failed to update rescue request:', error);
+            }
+          }}
         />
       </div>
     </main>

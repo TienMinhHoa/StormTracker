@@ -43,9 +43,10 @@ type MapProps = {
     luongmuatd_db: number;
   }>;
   onWarningClick?: (warning: any) => void;
+  onRescueRequestUpdate?: (requestId: number, status: 'completed' | 'safe_reported') => Promise<void>;
 };
 
-export default function Map({ onMapReady, rescueRequests = [], newsItems = [], activeTab = 'forecast', onNewsClick, onDamageNewsClick, selectedStorm, showNewsMarkers = true, showRescueMarkers = true, showWarningMarkers = true, showDamageMarkers = true, damageNewsItems = [], warningItems = [], onWarningClick }: MapProps) {
+export default function Map({ onMapReady, rescueRequests = [], newsItems = [], activeTab = 'forecast', onNewsClick, onDamageNewsClick, selectedStorm, showNewsMarkers = true, showRescueMarkers = true, showWarningMarkers = true, showDamageMarkers = true, damageNewsItems = [], warningItems = [], onWarningClick, onRescueRequestUpdate }: MapProps) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const marker = useRef<mapboxgl.Marker | null>(null);
@@ -301,13 +302,36 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
     rescueRequests.forEach((rescue) => {
       const [lng, lat] = rescue.coordinates;
 
-      // Create custom marker element
+      // Get marker color: green if completed or safe_reported, otherwise based on priority
+      const getMarkerColor = (status: string, priority: number): string => {
+        // If status is completed or safe_reported, always green
+        if (status === 'completed' || status === 'safe_reported') {
+          return '#22c55e'; // Green
+        }
+        // Otherwise, use priority-based color
+        if (priority <= 1) return '#ef4444'; // Red - critical
+        if (priority <= 2) return '#f97316'; // Orange - high
+        if (priority <= 3) return '#eab308'; // Yellow - medium
+        return '#22c55e'; // Green - low
+      };
+
+      const markerColor = getMarkerColor(rescue.status, rescue.priority || 3);
+      // For popup, use priority-based color for urgency display
+      const getUrgencyColor = (priority: number): string => {
+        if (priority <= 1) return '#ef4444';
+        if (priority <= 2) return '#f97316';
+        if (priority <= 3) return '#eab308';
+        return '#22c55e';
+      };
+      const urgencyColor = getUrgencyColor(rescue.priority || 3);
+
+      // Create custom marker element with number of people
       const el = document.createElement('div');
       el.className = 'rescue-marker';
-      el.style.width = '32px';
-      el.style.height = '32px';
+      el.style.width = '36px';
+      el.style.height = '36px';
       el.style.borderRadius = '50%';
-      el.style.backgroundColor = '#ef4444'; // Red color for rescue
+      el.style.backgroundColor = markerColor;
       el.style.border = '3px solid white';
       el.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.3)';
       el.style.cursor = 'pointer';
@@ -316,40 +340,104 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
       el.style.justifyContent = 'center';
       el.style.fontWeight = 'bold';
       el.style.color = 'white';
-      el.style.fontSize = '16px';
-      el.innerHTML = '🆘';
+      el.style.fontSize = '14px';
+      el.innerHTML = rescue.numberOfPeople.toString();
 
-      // Add pulsing animation for critical/high urgency
-      if (rescue.urgency === 'critical' || rescue.urgency === 'high') {
+      // Add pulsing animation for critical/high urgency (only if not completed/safe)
+      if ((rescue.urgency === 'critical' || rescue.urgency === 'high') && 
+          rescue.status !== 'completed' && rescue.status !== 'safe_reported') {
         el.style.animation = 'pulse 2s infinite';
       }
 
-      // Get urgency color for popup
-      const urgencyColors: Record<string, string> = {
-        critical: '#ef4444',
-        high: '#f97316',
-        medium: '#eab308',
-        low: '#22c55e',
-      };
-      const urgencyColor = urgencyColors[rescue.urgency] || '#6b7280';
-
-      // Create popup with rescue info
+      // Create popup with rescue info and action buttons
+      const statusLabel = rescue.status === 'pending' ? 'Đang tiếp nhận' :
+                         rescue.status === 'completed' ? 'Đã hỗ trợ' :
+                         rescue.status === 'safe_reported' ? 'Báo an toàn' : 'Đang cứu hộ';
+      
+      const urgencyLabel = rescue.urgency === 'critical' ? 'Cực kỳ khẩn cấp' :
+                          rescue.urgency === 'high' ? 'Khẩn cấp' :
+                          rescue.urgency === 'medium' ? 'Trung bình' : 'Không khẩn';
+      
+      const categoryLabel = rescue.category === 'medical' ? 'Y tế khẩn cấp' :
+                           rescue.category === 'trapped' ? 'Bị mắc kẹt' :
+                           rescue.category === 'food-water' ? 'Cần thức ăn/nước uống' :
+                           rescue.category === 'evacuation' ? 'Cần sơ tán' : 'Khác';
+      
+      // Create popup with rescue info and action buttons
       const popup = new mapboxgl.Popup({ 
         offset: 25, 
         closeButton: false,
         className: 'rescue-popup'
-      }).setHTML(`
-        <div style="padding: 12px; min-width: 220px;">
-          <h3 style="margin: 0 0 8px 0; font-weight: bold; color: ${urgencyColor}; font-size: 14px;">
-            ${rescue.urgency.toUpperCase()} - ${rescue.category}
-          </h3>
-          <p style="margin: 4px 0; font-size: 13px;"><strong>Tên:</strong> ${rescue.name}</p>
-          <p style="margin: 4px 0; font-size: 13px;"><strong>Số người:</strong> ${rescue.numberOfPeople}</p>
-          <p style="margin: 4px 0; font-size: 13px;"><strong>Địa chỉ:</strong> ${rescue.address}</p>
-          <p style="margin: 6px 0 4px 0; font-size: 12px; color: #666;">${rescue.description}</p>
-          <p style="margin: 4px 0 0 0; font-size: 11px; color: #999;">${rescue.timestamp}</p>
-        </div>
-      `);
+      });
+
+      const popupContent = document.createElement('div');
+      popupContent.style.padding = '12px';
+      popupContent.style.minWidth = '240px';
+      
+      popupContent.innerHTML = `
+        <h3 style="margin: 0 0 8px 0; font-weight: bold; color: ${urgencyColor}; font-size: 14px;">
+          ${urgencyLabel} - ${categoryLabel}
+        </h3>
+        <p style="margin: 4px 0; font-size: 13px;"><strong>Tên:</strong> ${rescue.name}</p>
+        <p style="margin: 4px 0; font-size: 13px;"><strong>Số điện thoại:</strong> ${rescue.phone || 'Chưa cung cấp'}</p>
+        <p style="margin: 4px 0; font-size: 13px;"><strong>Số người:</strong> ${rescue.numberOfPeople}</p>
+        <p style="margin: 4px 0; font-size: 13px;"><strong>Địa chỉ:</strong> ${rescue.address}</p>
+        <p style="margin: 4px 0; font-size: 13px;"><strong>Trạng thái:</strong> ${statusLabel}</p>
+        <p style="margin: 4px 0; font-size: 13px;"><strong>Mức độ ưu tiên:</strong> ${rescue.priority || 'N/A'}/5</p>
+        <p style="margin: 6px 0 4px 0; font-size: 12px; color: #666;">${rescue.description}</p>
+        <p style="margin: 4px 0 0 0; font-size: 11px; color: #999;">${rescue.timestamp}</p>
+        ${rescue.status !== 'completed' && rescue.status !== 'safe_reported' ? `
+          <div style="margin-top: 8px; display: flex; gap: 4px;">
+            <button id="btn-safe-${rescue.id}" style="flex: 1; padding: 6px; background: #14b8a6; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 500;">
+              ✓ Báo an toàn
+            </button>
+            <button id="btn-completed-${rescue.id}" style="flex: 1; padding: 6px; background: #22c55e; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 500;">
+              ✓ Đã hỗ trợ
+            </button>
+          </div>
+        ` : ''}
+      `;
+
+      popup.setDOMContent(popupContent);
+
+      // Add event listeners for buttons after popup is set
+      if (rescue.status !== 'completed' && rescue.status !== 'safe_reported' && onRescueRequestUpdate) {
+        // Use a closure to capture the rescue id and update function
+        const rescueId = rescue.id;
+        const updateHandler = onRescueRequestUpdate;
+        
+        // Wait for popup to be added to DOM
+        setTimeout(() => {
+          const safeBtn = popupContent.querySelector(`#btn-safe-${rescueId}`) as HTMLButtonElement;
+          const completedBtn = popupContent.querySelector(`#btn-completed-${rescueId}`) as HTMLButtonElement;
+          
+          if (safeBtn) {
+            safeBtn.addEventListener('click', async (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              try {
+                await updateHandler(rescueId, 'safe_reported');
+                popup.remove();
+              } catch (error) {
+                console.error('Failed to update status:', error);
+              }
+            });
+          }
+          
+          if (completedBtn) {
+            completedBtn.addEventListener('click', async (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              try {
+                await updateHandler(rescueId, 'completed');
+                popup.remove();
+              } catch (error) {
+                console.error('Failed to update status:', error);
+              }
+            });
+          }
+        }, 100);
+      }
 
       // Add click event to show rescue detail in sidebar
       el.addEventListener('click', () => {
@@ -357,7 +445,7 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
         if (map.current) {
           map.current.flyTo({
             center: [lng, lat],
-            zoom: 12,
+            zoom: 6.5,
             duration: 2000,
           });
         }
@@ -371,7 +459,34 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
 
       rescueMarkers.current.push(rescueMarker);
     });
-  }, [rescueRequests, activeTab, showRescueMarkers]);
+
+    // Auto-zoom to the rescue request with most people when entering rescue tab
+    if (rescueRequests.length > 0 && map.current && mapReady) {
+      const highestPriorityRequest = rescueRequests.reduce((max, request) => {
+        const maxPeople = max.numberOfPeople || 0;
+        const currentPeople = request.numberOfPeople || 0;
+        // Prioritize by number of people, then by priority (lower priority number = higher urgency)
+        if (currentPeople > maxPeople) return request;
+        if (currentPeople === maxPeople && (request.priority || 5) < (max.priority || 5)) return request;
+        return max;
+      });
+
+      // Zoom to the location with most people
+      if (highestPriorityRequest.coordinates && highestPriorityRequest.coordinates.length === 2) {
+        const [lng, lat] = highestPriorityRequest.coordinates;
+        setTimeout(() => {
+          if (map.current) {
+            map.current.flyTo({
+              center: [lng, lat],
+              zoom: 6.5,
+              duration: 2000,
+            });
+            console.log(`📍 Auto-zoomed to rescue request with ${highestPriorityRequest.numberOfPeople} people at [${lng}, ${lat}]`);
+          }
+        }, 500); // Small delay to ensure markers are rendered
+      }
+    }
+  }, [rescueRequests, activeTab, showRescueMarkers, mapReady]);
 
   // Warning markers effect
   useEffect(() => {
@@ -456,7 +571,7 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
         if (map.current) {
           map.current.flyTo({
             center: [lon, lat],
-            zoom: 11,
+            zoom: 6.5,
             duration: 2000,
           });
         }
@@ -520,7 +635,8 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
           ${news.thumbnail_url ? `
             <img src="${news.thumbnail_url}" 
                  style="width: 100%; height: 120px; object-fit: cover; border-radius: 6px; margin-bottom: 8px;" 
-                 alt="${truncatedTitle}" />
+                 alt="${truncatedTitle}"
+                 onerror="this.src='https://cdnphoto.dantri.com.vn/V0A7pXa4T8wsbhHMmWmZti84Kkk=/2025/11/07/da-nang-1762483851451.jpg'" />
           ` : ''}
           <h3 style="margin: 0 0 8px 0; font-weight: bold; color: #ef4444; font-size: 14px;">
             ${truncatedTitle}
@@ -557,7 +673,7 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
         if (map.current) {
           map.current.flyTo({
             center: [news.lon, news.lat],
-            zoom: 12,
+            zoom: 6.5,
             duration: 2000,
           });
         }
@@ -595,7 +711,7 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
           if (map.current) {
             map.current.flyTo({
               center: [position.coords.longitude, position.coords.latitude],
-              zoom: 12,
+              zoom: 6.5,
             });
           }
         },

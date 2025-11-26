@@ -131,6 +131,10 @@ function createTrackLineGeometry(tracks: StormTrackPoint[], forecastStartIndex: 
  * Convert storm track points to GeoJSON FeatureCollection of Points
  */
 function createTrackPointsGeometry(tracks: StormTrackPoint[]) {
+  // Last 15 tracks are forecast (future), rest are past
+  // If less than 15 tracks, all tracks are forecast
+  const forecastStartIndex = Math.max(0, tracks.length - 15);
+  
   return {
     type: 'FeatureCollection',
     features: tracks.map((track, index) => ({
@@ -149,7 +153,7 @@ function createTrackPointsGeometry(tracks: StormTrackPoint[]) {
           const hour = date.getHours().toString().padStart(2, '0');
           return `${day}-${hour}h`;
         })(),
-        is_forecast: index >= 3 // Points from index 3 onwards are forecast
+        is_forecast: index >= forecastStartIndex // Last 15 tracks are forecast
       },
       geometry: {
         type: 'Point',
@@ -240,6 +244,9 @@ export default function StormTrackLayer({
   const animationFrameRef = useRef<number | null>(null);
   const pulseStartTimeRef = useRef<number>(Date.now());
   const [layerReady, setLayerReady] = useState(false);
+  const popupRef = useRef<mapboxgl.Popup | null>(null);
+  const mouseEnterHandlerRef = useRef<((e: mapboxgl.MapLayerMouseEvent) => void) | null>(null);
+  const mouseLeaveHandlerRef = useRef<(() => void) | null>(null);
 
   // Add storm track layers to map
   useEffect(() => {
@@ -294,10 +301,13 @@ export default function StormTrackLayer({
         if (map.getSource(pastLineSourceId)) map.removeSource(pastLineSourceId);
 
         // Create GeoJSON data
-        const lineData = createTrackLineGeometry(tracks, 3);
+        // Last 15 tracks are forecast (future), rest are past
+        // If less than 15 tracks, all tracks are forecast
+        const forecastStartIndex = Math.max(0, tracks.length - 15);
+        const lineData = createTrackLineGeometry(tracks, forecastStartIndex);
         const pointsData = createTrackPointsGeometry(tracks);
-        const conesData = createForecastConesGeometry(tracks, 3);
-        const overallConeData = createOverallConeGeometry(tracks, 3);
+        const conesData = createForecastConesGeometry(tracks, forecastStartIndex);
+        const overallConeData = createOverallConeGeometry(tracks, forecastStartIndex);
         
         console.log('📊 Track data:', {
           pastLineCoords: lineData.past.geometry.coordinates.length,
@@ -455,6 +465,90 @@ export default function StormTrackLayer({
         });
         console.log('✅ Added labels layer');
 
+        // Helper function to get Beaufort scale category (0-17) based on wind speed
+        const getBeaufortCategory = (windSpeed: number): number => {
+          if (windSpeed <= 0.2) return 0;
+          if (windSpeed <= 1.5) return 1;
+          if (windSpeed <= 3.3) return 2;
+          if (windSpeed <= 5.4) return 3;
+          if (windSpeed <= 7.9) return 4;
+          if (windSpeed <= 10.7) return 5;
+          if (windSpeed <= 13.8) return 6;
+          if (windSpeed <= 17.1) return 7;
+          if (windSpeed <= 20.7) return 8;
+          if (windSpeed <= 24.4) return 9;
+          if (windSpeed <= 28.4) return 10;
+          if (windSpeed <= 32.6) return 11;
+          if (windSpeed <= 36.9) return 12;
+          if (windSpeed <= 41.4) return 13;
+          if (windSpeed <= 46.1) return 14;
+          if (windSpeed <= 50.9) return 15;
+          if (windSpeed <= 56.0) return 16;
+          if (windSpeed <= 61.2) return 17;
+          return 17; // Max category for speeds above 61.2 m/s
+        };
+
+        // Create popup for track points
+        const popup = new mapboxgl.Popup({
+          closeButton: false,
+          closeOnClick: false,
+          offset: 15
+        });
+        popupRef.current = popup;
+
+        // Add hover event handlers for track points
+        const handleMouseEnter = (e: mapboxgl.MapLayerMouseEvent) => {
+          // Change cursor to pointer
+          map.getCanvas().style.cursor = 'pointer';
+          
+          if (e.features && e.features.length > 0) {
+            const feature = e.features[0];
+            const props = feature.properties;
+            if (!props) return;
+            
+            const windSpeed = props.wind_speed || 0;
+            const beaufortCategory = getBeaufortCategory(windSpeed);
+            
+            const coordinates = (feature.geometry as GeoJSON.Point).coordinates.slice() as [number, number];
+            
+            // Create popup HTML
+            const popupHTML = `
+              <div style="padding: 8px; min-width: 180px;">
+                <div style="font-weight: bold; margin-bottom: 6px; font-size: 14px; color: #333;">
+                  Thông tin bão
+                </div>
+                <div style="margin: 4px 0; font-size: 13px;">
+                  <strong>Tốc độ gió:</strong> <span style="color: #e74c3c;">${windSpeed} m/s</span>
+                </div>
+                <div style="margin: 4px 0; font-size: 13px;">
+                  <strong>Cấp bão:</strong> <span style="color: #2980b9;">Cấp ${beaufortCategory}</span>
+                </div>
+              </div>
+            `;
+            
+            popup
+              .setLngLat(coordinates)
+              .setHTML(popupHTML)
+              .addTo(map);
+          }
+        };
+
+        const handleMouseLeave = () => {
+          // Reset cursor
+          map.getCanvas().style.cursor = '';
+          // Remove popup
+          if (popupRef.current) {
+            popupRef.current.remove();
+          }
+        };
+
+        // Store handlers in ref for cleanup
+        mouseEnterHandlerRef.current = handleMouseEnter;
+        mouseLeaveHandlerRef.current = handleMouseLeave;
+        
+        map.on('mouseenter', pointsLayerId, handleMouseEnter);
+        map.on('mouseleave', pointsLayerId, handleMouseLeave);
+
         console.log('✅ Storm track layers added (Windy style)');
         setLayerReady(true);
         
@@ -467,7 +561,7 @@ export default function StormTrackLayer({
           setTimeout(() => {
             map.flyTo({
               center: [midPoint.lon, midPoint.lat],
-              zoom: 7,
+              zoom: 5,
               duration: 2000
             });
           }, 1000);
@@ -481,7 +575,30 @@ export default function StormTrackLayer({
 
     // Cleanup
     return () => {
-      // Don't remove layers here to avoid flicker
+      if (!map) return;
+      
+      // Remove event handlers
+      const pointsLayerId = 'storm-track-points-layer';
+      try {
+        if (mouseEnterHandlerRef.current) {
+          map.off('mouseenter', pointsLayerId, mouseEnterHandlerRef.current);
+          mouseEnterHandlerRef.current = null;
+        }
+        if (mouseLeaveHandlerRef.current) {
+          map.off('mouseleave', pointsLayerId, mouseLeaveHandlerRef.current);
+          mouseLeaveHandlerRef.current = null;
+        }
+        if (popupRef.current) {
+          popupRef.current.remove();
+          popupRef.current = null;
+        }
+        // Reset cursor
+        if (map.getCanvas()) {
+          map.getCanvas().style.cursor = '';
+        }
+      } catch (error) {
+        // Ignore cleanup errors
+      }
     };
   }, [map, enabled, tracks]);
 

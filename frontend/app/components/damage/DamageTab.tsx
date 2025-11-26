@@ -417,6 +417,10 @@ export default function DamageTab({
                           src={news.thumbnail_url}
                           alt={news.title}
                           className="w-24 h-24 object-cover rounded"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.src = 'https://cdnphoto.dantri.com.vn/V0A7pXa4T8wsbhHMmWmZti84Kkk=/2025/11/07/da-nang-1762483851451.jpg';
+                          }}
                         />
                       )}
                       <div className="flex-1 min-w-0">

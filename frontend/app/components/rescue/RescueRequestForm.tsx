@@ -1,12 +1,14 @@
 'use client';
 
 import { useState } from 'react';
+import { createRescueRequest } from '../../services/rescueApi';
 
 type RescueRequestFormProps = {
   onBack: () => void;
+  stormId?: string;
 };
 
-export default function RescueRequestForm({ onBack }: RescueRequestFormProps) {
+export default function RescueRequestForm({ onBack, stormId }: RescueRequestFormProps) {
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -19,6 +21,7 @@ export default function RescueRequestForm({ onBack }: RescueRequestFormProps) {
 
   const [useCurrentLocation, setUseCurrentLocation] = useState(false);
   const [coordinates, setCoordinates] = useState<[number, number] | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleGetLocation = () => {
     if (navigator.geolocation) {
@@ -38,18 +41,64 @@ export default function RescueRequestForm({ onBack }: RescueRequestFormProps) {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!stormId) {
+      alert('Vui lòng chọn cơn bão trước khi gửi yêu cầu cứu hộ.');
+      return;
+    }
+
     if (!coordinates && useCurrentLocation) {
       alert('Đang lấy vị trí của bạn...');
       return;
     }
 
-    // TODO: Send rescue request to backend
-    console.log('Rescue request:', { ...formData, coordinates });
-    alert('Yêu cầu cứu hộ đã được gửi! Đội cứu hộ sẽ liên hệ sớm nhất.');
-    onBack();
+    if (!coordinates) {
+      alert('Vui lòng lấy vị trí hiện tại hoặc nhập tọa độ.');
+      return;
+    }
+
+    // Map urgency to priority (1=highest, 5=lowest)
+    const urgencyToPriority: Record<string, number> = {
+      'critical': 1,
+      'high': 2,
+      'medium': 3,
+      'low': 4,
+    };
+
+    setIsSubmitting(true);
+    try {
+      const requestData = {
+        storm_id: stormId,
+        name: formData.name,
+        phone: formData.phone,
+        address: formData.address,
+        lat: coordinates[1], // latitude
+        lon: coordinates[0], // longitude
+        priority: urgencyToPriority[formData.urgency] || 4,
+        status: 'pending',
+        type: 'emergency',
+        people_detail: {
+          numberOfPeople: formData.numberOfPeople,
+          category: formData.category,
+        },
+        verified: true,
+        note: formData.description || undefined,
+      };
+
+      console.log('📡 Sending rescue request:', requestData);
+      const result = await createRescueRequest(requestData);
+      console.log('✅ Rescue request created:', result);
+      
+      alert(`Yêu cầu cứu hộ đã được gửi thành công!\nMã yêu cầu: ${result.request_id}\nĐội cứu hộ sẽ liên hệ sớm nhất.`);
+      onBack();
+    } catch (error) {
+      console.error('❌ Failed to create rescue request:', error);
+      alert('Có lỗi xảy ra khi gửi yêu cầu cứu hộ. Vui lòng thử lại hoặc gọi đường dây nóng khẩn cấp.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -211,9 +260,10 @@ export default function RescueRequestForm({ onBack }: RescueRequestFormProps) {
           {/* Submit Button */}
           <button
             type="submit"
-            className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition-colors text-sm"
+            disabled={isSubmitting || !stormId}
+            className="w-full py-3 bg-red-600 hover:bg-red-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold rounded-lg transition-colors text-sm"
           >
-            🚨 GỬI YÊU CẦU CỨU HỘ
+            {isSubmitting ? '⏳ Đang gửi...' : '🚨 GỬI YÊU CẦU CỨU HỘ'}
           </button>
 
           <p className="text-xs text-gray-400 text-center">

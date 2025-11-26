@@ -176,6 +176,16 @@ export default function Sidebar({
     }
   }, [stormFilter]);
 
+  // Ensure selectedStorm is synced when selectedStormLocal changes (only on initial load)
+  useEffect(() => {
+    if (selectedStormLocal && (!selectedStorm || selectedStorm.storm_id !== selectedStormLocal.storm_id)) {
+      // Only sync if parent doesn't have the same storm (to avoid infinite loops)
+      onStormChange?.(selectedStormLocal);
+      console.log('🔄 Syncing selected storm to parent:', selectedStormLocal.name);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedStormLocal?.storm_id]);
+
   const handleTabChange = (tab: Tab) => {
     setActiveTab(tab);
     onTabChange?.(tab);
@@ -509,7 +519,7 @@ export default function Sidebar({
                   onShowDamageMarkersChange={onShowDamageMarkersChange}
                 />
               )}
-              {activeTab === 'chatbot' && <ChatbotTab />}
+              {activeTab === 'chatbot' && <ChatbotTab stormId={currentStorm?.storm_id} />}
               {activeTab === 'settings' && (
                 <SettingsPanel
                   showNewsMarkers={showNewsMarkers}
