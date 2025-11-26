@@ -335,7 +335,7 @@
 
             updateConnectionStatus('connecting', 'Connecting...');
             
-            ws = new WebSocket('ws://localhost:8000/chatbot/ws');
+            ws = new WebSocket('ws://localhost:8888/chatbot/ws');
 
             ws.onopen = () => {
                 isConnected = true;
