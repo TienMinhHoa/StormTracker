@@ -196,3 +196,25 @@ class RescueRequestResponse(BaseModel):
     verified: Optional[bool] = None
     note: Optional[str] = None
     created_at: datetime
+
+
+# Forecast Schemas
+class ForecastCreate(BaseModel):
+    storm_id: str
+    nchmf: Optional[dict] = None  # JSON data from National Center for Hydro-Meteorological Forecasting
+    jtwc: Optional[dict] = None   # JSON data from Joint Typhoon Warning Center
+
+
+class ForecastUpdate(BaseModel):
+    nchmf: Optional[dict] = None
+    jtwc: Optional[dict] = None
+
+
+class ForecastResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
+    forecast_id: int
+    storm_id: str
+    nchmf: Optional[dict] = None
+    jtwc: Optional[dict] = None
+    created_at: datetime

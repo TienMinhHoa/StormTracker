@@ -41,6 +41,7 @@ class Storm(Base):
     social_posts = relationship("SocialPost", back_populates="storm")
     rescue_requests = relationship("RescueRequest", back_populates="storm")
     damage_assessments = relationship("DamageAssessment", back_populates="storm")
+    forecasts = relationship("Forecast", back_populates="storm")
     
     
 class StormTrack(Base):
@@ -131,3 +132,15 @@ class DamageAssessment(Base):
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
     storm = relationship("Storm", back_populates="damage_assessments")
+
+
+class Forecast(Base):
+    __tablename__ = "forecasts"
+
+    forecast_id = Column(Integer, primary_key=True, autoincrement=True)
+    storm_id = Column(String, ForeignKey("storms.storm_id"), nullable=False)
+    nchmf = Column(JSON)  # JSON từ Trung tâm Khí tượng Thuỷ văn
+    jtwc = Column(JSON)   # JSON từ JTWC (Joint Typhoon Warning Center)
+    created_at = Column(DateTime, server_default=func.now())
+
+    storm = relationship("Storm", back_populates="forecasts")
