@@ -23,6 +23,7 @@ export default function Home() {
   const [warningItems, setWarningItems] = useState<Warning[]>([]);
   const [loadingWarnings, setLoadingWarnings] = useState(false);
   const [selectedWarning, setSelectedWarning] = useState<Warning | null>(null);
+  const [selectedWarningTime, setSelectedWarningTime] = useState<string | null>(null);
   const [showDamageMarkers, setShowDamageMarkers] = useState(true); // Default to true
   const [damageNewsItems, setDamageNewsItems] = useState<DamageNews[]>([]);
   const [loadingDamageNews, setLoadingDamageNews] = useState(false);
@@ -75,7 +76,7 @@ export default function Home() {
     fetchNews();
   }, [selectedStorm]);
 
-  // Fetch warnings when forecast tab is active
+  // Fetch warnings when forecast tab is active or time changes
   useEffect(() => {
     const fetchWarnings = async () => {
       if (activeTab !== 'forecast' || !showWarningMarkers) {
@@ -85,8 +86,8 @@ export default function Home() {
 
       try {
         setLoadingWarnings(true);
-        console.log('⚠️ Fetching warnings for map...');
-        const data = await getWarnings(6); // Fixed 6 hours
+        console.log('⚠️ Fetching warnings for map...', selectedWarningTime ? `at ${selectedWarningTime}` : 'current');
+        const data = await getWarnings(6, selectedWarningTime || undefined);
         setWarningItems(data);
         console.log(`✅ Loaded ${data.length} warnings for map`);
       } catch (error) {
@@ -98,7 +99,7 @@ export default function Home() {
     };
 
     fetchWarnings();
-  }, [activeTab, showWarningMarkers]);
+  }, [activeTab, showWarningMarkers, selectedWarningTime]);
 
   // Fetch damage news when damage tab is active
   useEffect(() => {
@@ -258,6 +259,7 @@ export default function Home() {
         showDamageMarkers={showDamageMarkers}
         onShowDamageMarkersChange={setShowDamageMarkers}
         onShowRescueForm={() => setShowRescueForm(true)}
+        onWarningTimeChange={setSelectedWarningTime}
       />
       <div className="absolute inset-0 md:left-0">
         <Map
@@ -273,6 +275,7 @@ export default function Home() {
           selectedStorm={selectedStorm}
           showNewsMarkers={showNewsMarkers}
           showRescueMarkers={showRescueMarkers}
+          showWarningMarkers={showWarningMarkers}
           showDamageMarkers={showDamageMarkers}
         />
       </div>

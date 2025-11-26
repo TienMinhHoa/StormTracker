@@ -40,6 +40,14 @@ export default function DamageTab({
         return;
       }
 
+      // Skip fetching for live tracking mode
+      if (stormId === 'NOWLIVE1234') {
+        console.log('⏭️ Skipping damage fetch for live tracking mode');
+        setDamageData([]);
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
         const data = await getDamageByStorm(stormId);
@@ -60,6 +68,14 @@ export default function DamageTab({
     const fetchDamageNews = async () => {
       if (!stormId) {
         setDamageNews([]);
+        return;
+      }
+
+      // Skip fetching for live tracking mode
+      if (stormId === 'NOWLIVE1234') {
+        console.log('⏭️ Skipping damage news fetch for live tracking mode');
+        setDamageNews([]);
+        setLoadingNews(false);
         return;
       }
 
@@ -364,7 +380,14 @@ export default function DamageTab({
 
             {damageData.length === 0 && (
               <div className="text-center py-8 text-gray-400">
-                <p className="text-sm">Không có dữ liệu thiệt hại</p>
+                {stormId === 'NOWLIVE1234' ? (
+                  <div className="space-y-2">
+                    <p className="text-sm">🔴 Chế độ Live Tracking</p>
+                    <p className="text-xs">Dữ liệu thiệt hại chỉ có sẵn cho các cơn bão đã ghi nhận</p>
+                  </div>
+                ) : (
+                  <p className="text-sm">Không có dữ liệu thiệt hại</p>
+                )}
               </div>
             )}
           </>

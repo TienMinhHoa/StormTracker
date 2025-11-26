@@ -6,17 +6,20 @@ import { NewsItem } from '../news/newsData';
 import { getNewsByStorm, type News } from '../../services/newsApi';
 import { getWarnings, getRiskColor, getRiskIcon, type Warning, type RiskLevel } from '../../services/warningApi';
 import SafeBackgroundImage from '../common/SafeBackgroundImage';
+import StormForecast from './StormForecast';
 
 type ForecastTabProps = {
   onNewsClick?: (news: NewsItem) => void;
   selectedNewsId?: number | null;
   stormId?: string;
+  storm?: { storm_id: string; name: string; end_date: string | null } | null;
   showNewsMarkers?: boolean;
   onShowNewsMarkersChange?: (show: boolean) => void;
   onWarningClick?: (warning: Warning) => void;
   selectedWarning?: Warning | null;
   showWarningMarkers?: boolean;
   onShowWarningMarkersChange?: (show: boolean) => void;
+  onWarningTimeChange?: (time: string | null) => void;
 };
 
 // Convert API News to NewsItem format
@@ -42,12 +45,14 @@ export default function ForecastTab({
   onNewsClick, 
   selectedNewsId, 
   stormId,
+  storm,
   showNewsMarkers = true,
   onShowNewsMarkersChange,
   onWarningClick,
   selectedWarning,
   showWarningMarkers = true,
-  onShowWarningMarkersChange
+  onShowWarningMarkersChange,
+  onWarningTimeChange
 }: ForecastTabProps) {
   const [activeSection, setActiveSection] = useState<'forecast' | 'flood'>('forecast');
   const [selectedNews, setSelectedNews] = useState<NewsItem | null>(null);
@@ -61,6 +66,10 @@ export default function ForecastTab({
   const [errorWarnings, setErrorWarnings] = useState<string | null>(null);
   const [expandedWarningId, setExpandedWarningId] = useState<number | null>(null);
   const [collapsedProvinces, setCollapsedProvinces] = useState<Set<string>>(new Set());
+  
+  // Time travel states - 3 time points: 12h ago, 6h ago, now
+  const [selectedTimeIndex, setSelectedTimeIndex] = useState(0);
+  const [timeSlots, setTimeSlots] = useState<Array<{ date: string; label: string; hoursAgo: number }>>([]);
 
   // Fetch storm forecast news
   useEffect(() => {
@@ -90,17 +99,62 @@ export default function ForecastTab({
     fetchNews();
   }, [stormId]);
 
-  // Fetch flood warnings
+  // Generate 3 time slots: 6h ago, now, 6h future
+  useEffect(() => {
+    const slots: Array<{ date: string; label: string; hoursAgo: number }> = [];
+    const now = new Date();
+    
+    // 3 time points: 6h trước (fetch 12h ago), Hiện tại (fetch 6h ago), 6h sau (fetch now)
+    const timePoints = [
+      { hoursOffset: -6, label: '6h trước', fetchHoursAgo: 12 },  // View 6h ago, fetch forecast from 12h ago
+      { hoursOffset: 0, label: '🔴 Hiện tại', fetchHoursAgo: 6 },  // View now, fetch forecast from 6h ago
+      { hoursOffset: 6, label: '6h sau', fetchHoursAgo: 0 },       // View 6h future, fetch forecast from now
+    ];
+    
+    timePoints.forEach(point => {
+      // Display time (what user sees)
+      const displayTime = new Date(now.getTime() + (point.hoursOffset * 60 * 60 * 1000));
+      
+      // Format to "YYYY-MM-DD HH:00:00"
+      const year = displayTime.getFullYear();
+      const month = String(displayTime.getMonth() + 1).padStart(2, '0');
+      const day = String(displayTime.getDate()).padStart(2, '0');
+      const hour = String(displayTime.getHours()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day} ${hour}:00:00`;
+      
+      slots.push({ date: dateStr, label: point.label, hoursAgo: point.fetchHoursAgo });
+    });
+    
+    setTimeSlots(slots);
+  }, []);
+
+  // Fetch flood warnings based on selected time
   useEffect(() => {
     const fetchWarnings = async () => {
+      if (timeSlots.length === 0) return;
+      
       try {
         setLoadingWarnings(true);
         setErrorWarnings(null);
-        const data = await getWarnings(6);
+        const selectedSlot = timeSlots[selectedTimeIndex];
+        
+        // Calculate forecast time based on hoursAgo
+        const forecastTime = new Date(new Date(selectedSlot.date).getTime() - (selectedSlot.hoursAgo * 60 * 60 * 1000));
+        const year = forecastTime.getFullYear();
+        const month = String(forecastTime.getMonth() + 1).padStart(2, '0');
+        const day = String(forecastTime.getDate()).padStart(2, '0');
+        const hour = String(forecastTime.getHours()).padStart(2, '0');
+        const forecastDateStr = `${year}-${month}-${day} ${hour}:00:00`;
+        
+        console.log('📅 Fetching warnings for time:', selectedSlot.date, 'with forecast from:', forecastDateStr);
+        const data = await getWarnings(6, forecastDateStr);
         setWarnings(data);
         // Collapse all provinces by default
         const allProvinces = new Set(data.map(w => w.provinceName));
         setCollapsedProvinces(allProvinces);
+        
+        // Notify parent component about time change for map markers
+        onWarningTimeChange?.(forecastDateStr);
       } catch (err) {
         console.error('❌ Failed to load warnings:', err);
         setErrorWarnings('Không thể tải cảnh báo ngập lụt');
@@ -111,7 +165,7 @@ export default function ForecastTab({
     };
 
     fetchWarnings();
-  }, []);
+  }, [selectedTimeIndex, timeSlots, onWarningTimeChange]);
 
   // Update selectedNews when selectedNewsId changes
   useEffect(() => {
@@ -235,67 +289,50 @@ export default function ForecastTab({
           {/* Forecast Section */}
           {activeSection === 'forecast' && (
             <>
-              {/* Marker Toggle */}
-              {onShowNewsMarkersChange && (
-                <div className="flex items-center justify-end">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-400">Hiển thị marker</span>
-                    <button
-                      onClick={() => onShowNewsMarkersChange(!showNewsMarkers)}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                        showNewsMarkers ? 'bg-[#137fec]' : 'bg-gray-600'
-                      }`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                          showNewsMarkers ? 'translate-x-6' : 'translate-x-1'
-                        }`}
-                      />
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {loadingNews && (
-                <div className="flex items-center justify-center py-8">
-                  <div className="text-gray-400 text-sm">Đang tải dự báo...</div>
-                </div>
-              )}
-
-              {errorNews && (
-                <div className="flex items-center justify-center py-8">
-                  <div className="text-red-400 text-sm">{errorNews}</div>
-                </div>
-              )}
-
-              {!loadingNews && !errorNews && (
-                newsItems.length === 0 ? (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="text-gray-400 text-sm">Không có tin dự báo</div>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 gap-4">
-                    {newsItems.map((item) => (
-                      <div key={item.id} className="flex flex-col gap-2">
-                        <button
-                          onClick={() => handleNewsClick(item)}
-                          className="block group w-full text-left"
-                        >
-                          <SafeBackgroundImage
-                            src={item.image}
-                            className="aspect-video w-full rounded-lg bg-cover bg-center bg-gray-800 group-hover:opacity-80 transition-opacity"
-                          />
-                        </button>
-                        <button
-                          onClick={() => handleNewsClick(item)}
-                          className="text-left group"
-                        >
-                          <h3 className="text-sm font-medium leading-snug text-white group-hover:text-[#137fec] transition-colors">
-                            {item.title}
-                          </h3>
-                        </button>
+              {/* Check if storm has ended */}
+              {storm && storm.end_date && new Date(storm.end_date) < new Date() ? (
+                <div className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 rounded-xl p-6 border border-gray-600/40 backdrop-blur-sm">
+                  <div className="text-center space-y-4">
+                    {/* Icon */}
+                    <div className="flex justify-center">
+                      <div className="w-20 h-20 bg-gradient-to-br from-gray-700 to-gray-800 rounded-full flex items-center justify-center shadow-lg">
+                        <span className="text-4xl">📜</span>
                       </div>
-                    ))}
+                    </div>
+                    
+                    {/* Title */}
+                    <div>
+                      <h3 className="text-xl font-bold text-white mb-2">
+                        {storm.name}
+                      </h3>
+                      <div className="inline-block px-4 py-2 bg-gray-700/60 rounded-full">
+                        <span className="text-sm text-gray-300 font-medium">✓ Đã kết thúc</span>
+                      </div>
+                    </div>
+
+                    {/* Message */}
+                    <div className="space-y-2">
+                      <p className="text-gray-400 text-sm leading-relaxed">
+                        Cơn bão này đã kết thúc vào ngày <span className="text-white font-medium">{new Date(storm.end_date).toLocaleDateString('vi-VN')}</span>
+                      </p>
+                      <p className="text-gray-500 text-xs">
+                        Dữ liệu dự báo chỉ khả dụng cho các cơn bão đang hoạt động
+                      </p>
+                    </div>
+
+                    {/* Decorative Line */}
+                    <div className="flex items-center justify-center gap-2 pt-2">
+                      <div className="h-px w-12 bg-gradient-to-r from-transparent to-gray-600"></div>
+                      <span className="text-gray-600 text-xs">⏹</span>
+                      <div className="h-px w-12 bg-gradient-to-l from-transparent to-gray-600"></div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Storm Forecast Widget for active storms */
+                stormId && (
+                  <div className="mb-4">
+                    <StormForecast stormId={stormId} />
                   </div>
                 )
               )}
@@ -305,6 +342,54 @@ export default function ForecastTab({
           {/* Flood Warning Section */}
           {activeSection === 'flood' && (
             <>
+              {/* Time Selector */}
+              {timeSlots.length > 0 && (
+                <div className="bg-gradient-to-br from-blue-900/40 to-purple-900/40 rounded-lg p-4 border border-blue-500/30">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">⏰</span>
+                        <h3 className="text-sm font-bold text-white">Thời điểm xem dữ liệu</h3>
+                      </div>
+                      <span className="text-xs text-gray-400">3 giờ/bước</span>
+                    </div>
+                    
+                    {/* Current Selection Display */}
+                    <div className="bg-black/30 rounded-lg p-3 text-center">
+                      <div className="text-teal-400 font-bold text-sm">
+                        {timeSlots[selectedTimeIndex].label}
+                      </div>
+                      <div className="text-xs text-gray-400 mt-1">
+                        {selectedTimeIndex === 0 ? 'Dữ liệu mới nhất' : `${selectedTimeIndex * 3} giờ trước`}
+                      </div>
+                    </div>
+
+                    {/* Time Selection Buttons */}
+                    <div className="flex gap-2">
+                      {timeSlots.map((slot, index) => (
+                        <button
+                          key={index}
+                          onClick={() => setSelectedTimeIndex(index)}
+                          className={`flex-1 px-4 py-3 rounded-lg text-sm font-medium transition-all ${
+                            selectedTimeIndex === index
+                              ? 'bg-teal-600 text-white shadow-lg'
+                              : 'bg-gray-700/60 text-gray-300 hover:bg-gray-700'
+                          }`}
+                        >
+                          <div className="font-bold">
+                            {slot.label}
+                          </div>
+                          <div className="text-[10px] opacity-60 mt-1">
+                            {new Date(slot.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}{' '}
+                            {new Date(slot.date).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Marker Toggle */}
               {onShowWarningMarkersChange && (
                 <div className="flex items-center justify-end">

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND_URL = 'http://118.70.181.146:58888';
+const API_BASE_URL = 'http://118.70.181.146:58888/api/v1';
 
 export async function GET(
   request: NextRequest,
@@ -8,12 +8,9 @@ export async function GET(
 ) {
   try {
     const { stormId } = await params;
-    const { searchParams } = new URL(request.url);
-    const skip = searchParams.get('skip') || '0';
-    const limit = searchParams.get('limit') || '100';
 
     const response = await fetch(
-      `${BACKEND_URL}/api/v1/damage/storm/${stormId}?skip=${skip}&limit=${limit}`,
+      `${API_BASE_URL}/forecasts/storm/${stormId}/latest`,
       {
         method: 'GET',
         headers: {
@@ -24,7 +21,7 @@ export async function GET(
 
     if (!response.ok) {
       return NextResponse.json(
-        { error: `Backend returned ${response.status}` },
+        { error: `Failed to fetch forecast: ${response.statusText}` },
         { status: response.status }
       );
     }
@@ -32,9 +29,9 @@ export async function GET(
     const data = await response.json();
     return NextResponse.json(data);
   } catch (error) {
-    console.error('Error fetching damage data:', error);
+    console.error('Error fetching forecast:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch damage data' },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }

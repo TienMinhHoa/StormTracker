@@ -8,6 +8,7 @@ import { ChatbotTab } from '../chatbot';
 import { DamageTab } from '../damage';
 import { SettingsPanel } from '../settings';
 import { getStorms, type Storm } from '../../services/stormApi';
+import { getLiveTracking, type LiveTrackingData } from '../../services/liveApi';
 
 type Tab = 'forecast' | 'rescue' | 'damage' | 'chatbot' | 'settings';
 
@@ -28,6 +29,7 @@ type SidebarProps = {
   onShowRescueMarkersChange?: (show: boolean) => void;
   showWarningMarkers?: boolean;
   onShowWarningMarkersChange?: (show: boolean) => void;
+  onWarningTimeChange?: (time: string | null) => void;
   showDamageMarkers?: boolean;
   onShowDamageMarkersChange?: (show: boolean) => void;
   onShowRescueForm?: () => void;
@@ -52,7 +54,8 @@ export default function Sidebar({
   onShowWarningMarkersChange,
   showDamageMarkers = true,
   onShowDamageMarkersChange,
-  onShowRescueForm
+  onShowRescueForm,
+  onWarningTimeChange
 }: SidebarProps) {
   const [activeTab, setActiveTab] = useState<'forecast' | 'rescue' | 'damage' | 'chatbot' | 'settings'>('forecast');
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -66,6 +69,8 @@ export default function Sidebar({
   const [filteredStorms, setFilteredStorms] = useState<Storm[]>([]);
   const [isMounted, setIsMounted] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [liveData, setLiveData] = useState<LiveTrackingData | null>(null);
+  const [isLoadingLive, setIsLoadingLive] = useState(false);
 
   // Client-side only mount check
   useEffect(() => {
@@ -107,36 +112,60 @@ export default function Sidebar({
   }, []);
 
   // Filter storms based on selected filter
-  const filterStorms = (allStorms: Storm[], filter: typeof stormFilter) => {
+  const filterStorms = async (allStorms: Storm[], filter: typeof stormFilter) => {
     let filtered: Storm[] = [];
     
     if (filter === 'realtime') {
-      // Real-time mode: only show active storms (no end_date or end_date in future)
-      const now = new Date();
-      filtered = allStorms.filter(storm => 
-        !storm.end_date || new Date(storm.end_date) > now
-      );
-    } else if (filter === 'recent3') {
-      filtered = allStorms.slice(0, 3);
-    } else if (filter === 'recent10') {
-      filtered = allStorms.slice(0, 10);
+      // Real-time mode: Query live tracking data
+      setIsLoadingLive(true);
+      try {
+        const liveTrackingData = await getLiveTracking('NOWLIVE1234');
+        setLiveData(liveTrackingData);
+        
+        // Create a virtual storm from live data
+        const liveStorm: Storm = {
+          storm_id: 'NOWLIVE1234',
+          name: '🔴 Live Tracking',
+          start_date: liveTrackingData.timestamp,
+          end_date: null,
+          description: `Live tracking: ${liveTrackingData.status}`,
+        };
+        
+        filtered = [liveStorm];
+        setFilteredStorms(filtered);
+        setSelectedStormLocal(liveStorm);
+        onStormChange?.(liveStorm);
+        console.log('🔴 Live mode activated:', liveTrackingData);
+      } catch (error) {
+        console.error('❌ Failed to load live tracking:', error);
+        setLiveData(null);
+        filtered = [];
+        setFilteredStorms(filtered);
+        setSelectedStormLocal(null);
+        onStormChange?.(null as any);
+      } finally {
+        setIsLoadingLive(false);
+      }
     } else {
-      filtered = allStorms;
-    }
-    
-    setFilteredStorms(filtered);
-    
-    // Auto-select first storm if needed
-    if (filtered.length > 0 && !selectedStorm && !selectedStormLocal) {
-      const firstStorm = filtered[0];
-      setSelectedStormLocal(firstStorm);
-      onStormChange?.(firstStorm);
-      console.log('🌪️ Auto-selected first storm:', firstStorm.name);
-    } else if (filtered.length === 0 && filter === 'realtime') {
-      // In realtime mode with no active storms, clear selection
-      setSelectedStormLocal(null);
-      onStormChange?.(null as any);
-      console.log('⏱️ Real-time mode: No active storms');
+      // Normal mode: show historical storms
+      setLiveData(null);
+      if (filter === 'recent3') {
+        filtered = allStorms.slice(0, 3);
+      } else if (filter === 'recent10') {
+        filtered = allStorms.slice(0, 10);
+      } else {
+        filtered = allStorms;
+      }
+      
+      setFilteredStorms(filtered);
+      
+      // Auto-select first storm if needed
+      if (filtered.length > 0 && !selectedStorm && !selectedStormLocal) {
+        const firstStorm = filtered[0];
+        setSelectedStormLocal(firstStorm);
+        onStormChange?.(firstStorm);
+        console.log('🌪️ Auto-selected first storm:', firstStorm.name);
+      }
     }
   };
 
@@ -452,12 +481,14 @@ export default function Sidebar({
                   onNewsClick={onNewsClick} 
                   selectedNewsId={selectedNewsId} 
                   stormId={currentStorm?.storm_id}
+                  storm={currentStorm}
                   showNewsMarkers={showNewsMarkers}
                   onShowNewsMarkersChange={onShowNewsMarkersChange}
                   onWarningClick={onWarningClick}
                   selectedWarning={selectedWarning}
                   showWarningMarkers={showWarningMarkers}
                   onShowWarningMarkersChange={onShowWarningMarkersChange}
+                  onWarningTimeChange={onWarningTimeChange}
                 />
               )}
               {activeTab === 'rescue' && (
