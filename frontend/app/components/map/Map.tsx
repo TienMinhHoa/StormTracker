@@ -14,7 +14,7 @@ import { RescueRequest } from '../rescue';
 import { AVAILABLE_TIMESTAMPS } from './services/tiffService';
 import { getStormTracks, type Storm, type StormTrack } from '../../services/stormApi';
 import { getSafeImageUrl, DEFAULT_NEWS_IMAGE } from '../../utils/imageUtils';
-import type { DamageNews } from '../../services/damageApi';
+import type { DamageDetailRecord } from '../../services/damageDetailsApi';
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!;
 
@@ -24,13 +24,12 @@ type MapProps = {
   newsItems?: Array<{ id: number; coordinates: [number, number]; title: string; image: string; category: string }>;
   activeTab?: 'forecast' | 'rescue' | 'damage' | 'chatbot';
   onNewsClick?: (news: any) => void;
-  onDamageNewsClick?: (damageNews: DamageNews) => void;
   selectedStorm?: Storm | null;
   showNewsMarkers?: boolean;
   showRescueMarkers?: boolean;
   showWarningMarkers?: boolean;
   showDamageMarkers?: boolean;
-  damageNewsItems?: DamageNews[];
+  damageDetailsItems?: DamageDetailRecord[];
   rescueNewsItems?: Array<{
     news_id: number;
     title: string;
@@ -57,14 +56,14 @@ type MapProps = {
   onRescueRequestUpdate?: (requestId: number, status: 'completed' | 'safe_reported') => Promise<void>;
 };
 
-export default function Map({ onMapReady, rescueRequests = [], newsItems = [], activeTab = 'forecast', onNewsClick, onDamageNewsClick, selectedStorm, showNewsMarkers = true, showRescueMarkers = true, showWarningMarkers = true, showDamageMarkers = true, damageNewsItems = [], rescueNewsItems = [], showRescueNewsMarkers = true, warningItems = [], onWarningClick, onRescueRequestUpdate }: MapProps) {
+export default function Map({ onMapReady, rescueRequests = [], newsItems = [], activeTab = 'forecast', onNewsClick, selectedStorm, showNewsMarkers = true, showRescueMarkers = true, showWarningMarkers = true, showDamageMarkers = true, damageDetailsItems = [], rescueNewsItems = [], showRescueNewsMarkers = true, warningItems = [], onWarningClick, onRescueRequestUpdate }: MapProps) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const marker = useRef<mapboxgl.Marker | null>(null);
   const rescueMarkers = useRef<mapboxgl.Marker[]>([]);
   const newsMarkers = useRef<mapboxgl.Marker[]>([]);
   const warningMarkers = useRef<mapboxgl.Marker[]>([]);
-  const damageNewsMarkers = useRef<mapboxgl.Marker[]>([]);
+  const damageDetailMarkers = useRef<mapboxgl.Marker[]>([]);
   const rescueNewsMarkers = useRef<mapboxgl.Marker[]>([]);
   const [mapState, setMapState] = useState({
     lat: 21.0278,
@@ -705,90 +704,91 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
     if (!map.current || !mapReady) return;
 
     // Clear existing damage news markers
-    damageNewsMarkers.current.forEach(marker => marker.remove());
-    damageNewsMarkers.current = [];
+    damageDetailMarkers.current.forEach(marker => marker.remove());
+    damageDetailMarkers.current = [];
 
-    // Only show damage markers when damage tab is active and toggle is on
-    if (activeTab !== 'damage' || !showDamageMarkers || damageNewsItems.length === 0) return;
+    // Only show damage detail markers when damage tab is active and toggle is on
+    if (activeTab !== 'damage' || !showDamageMarkers || damageDetailsItems.length === 0) return;
 
-    console.log(`🏗️ Adding ${damageNewsItems.length} damage news markers to map`);
+    console.log(`📍 Adding ${damageDetailsItems.length} damage detail location markers to map`);
 
-    damageNewsItems.forEach((news) => {
-      if (!news.lat || !news.lon) return;
+    damageDetailsItems.forEach((detail) => {
+      const { latitude, longitude, location_name, damages } = detail.content;
+      if (!latitude || !longitude) return;
 
+      // Determine marker color based on damage types
+      const hasCasualties = damages.casualties;
+      const hasEconomic = damages.economic;
+      const markerColor = hasCasualties ? '#dc2626' : hasEconomic ? '#9333ea' : '#ef4444';
+      
       // Create marker element
       const el = document.createElement('div');
-      el.className = 'damage-news-marker';
-      el.style.width = '32px';
-      el.style.height = '32px';
+      el.className = 'damage-detail-marker';
+      el.style.width = '36px';
+      el.style.height = '36px';
       el.style.borderRadius = '50%';
-      el.style.backgroundColor = '#ef4444';
+      el.style.backgroundColor = markerColor;
       el.style.border = '3px solid white';
-      el.style.boxShadow = '0 3px 10px rgba(0, 0, 0, 0.4)';
+      el.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.5)';
       el.style.cursor = 'pointer';
       el.style.display = 'flex';
       el.style.alignItems = 'center';
       el.style.justifyContent = 'center';
       el.style.fontWeight = 'bold';
       el.style.color = 'white';
-      el.style.fontSize = '16px';
-      el.innerHTML = '🏗️';
+      el.style.fontSize = '18px';
+      el.innerHTML = '📍';
 
-      // Create popup with news preview - show full title and content
+      // Build damage categories HTML
+      const damageCategories = Object.entries(damages).map(([category, description]) => {
+        const icons: Record<string, string> = {
+          flooding: '🌊', wind_damage: '💨', infrastructure: '🏗️',
+          agriculture: '🌾', casualties: '💀', evacuated: '🚶', economic: '💰'
+        };
+        const icon = icons[category] || '📌';
+        return `
+          <div style="background: rgba(55, 65, 81, 0.5); padding: 8px; border-radius: 6px; margin-bottom: 8px;">
+            <div style="color: #fbbf24; font-weight: 600; font-size: 12px; margin-bottom: 4px;">
+              ${icon} ${category.replace(/_/g, ' ').toUpperCase()}
+            </div>
+            <div style="color: #d1d5db; font-size: 12px; line-height: 1.4;">
+              ${description}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // Create popup with damage details
       const popup = new mapboxgl.Popup({ 
         offset: 25, 
         closeButton: true,
-        className: 'damage-news-popup',
-        maxWidth: '320px'
+        className: 'damage-detail-popup',
+        maxWidth: '350px'
       }).setHTML(`
         <div style="padding: 14px; background: linear-gradient(135deg, #1f2937 0%, #111827 100%); border-radius: 8px;">
-          ${news.thumbnail_url ? `
-            <img src="${news.thumbnail_url}" 
-                 style="width: 100%; height: 140px; object-fit: cover; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.3);" 
-                 alt="Ảnh tin tức"
-                 onerror="this.src='https://cdnphoto.dantri.com.vn/V0A7pXa4T8wsbhHMmWmZti84Kkk=/2025/11/07/da-nang-1762483851451.jpg'" />
-          ` : ''}
-          <div style="background: rgba(239, 68, 68, 0.1); padding: 10px; border-radius: 6px; border-left: 3px solid #ef4444; margin-bottom: 10px;">
-            <h3 style="margin: 0; font-weight: bold; color: #fca5a5; font-size: 15px; line-height: 1.4;">
-              🏗️ ${news.title}
+          <div style="background: rgba(239, 68, 68, 0.15); padding: 10px; border-radius: 6px; border-left: 4px solid ${markerColor}; margin-bottom: 12px;">
+            <h3 style="margin: 0; font-weight: bold; color: #fff; font-size: 16px;">
+              📍 ${location_name}
             </h3>
-          </div>
-          <div style="background: rgba(55, 65, 81, 0.5); padding: 10px; border-radius: 6px; margin-bottom: 10px;">
-            <p style="margin: 0; font-size: 13px; color: #d1d5db; line-height: 1.6;">
-              ${news.content}
+            <p style="margin: 4px 0 0 0; font-size: 11px; color: #9ca3af;">
+              ${latitude.toFixed(4)}°, ${longitude.toFixed(4)}°
             </p>
           </div>
-          <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 8px; border-top: 1px solid rgba(75, 85, 99, 0.5);">
-            <span style="font-size: 11px; color: #9ca3af;">
-              📅 ${new Date(news.published_at).toLocaleDateString('vi-VN', { 
-                year: 'numeric', 
-                month: 'short', 
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-              })}
+          ${damageCategories}
+          <div style="padding-top: 8px; border-top: 1px solid rgba(75, 85, 99, 0.5); margin-top: 8px;">
+            <span style="font-size: 10px; color: #9ca3af;">
+              ID: ${detail.id} • Storm: ${detail.storm_id}
             </span>
-            ${news.source_url ? `
-              <a href="${news.source_url}" 
-                 target="_blank" 
-                 rel="noopener noreferrer"
-                 style="color: #14b8a6; font-size: 11px; text-decoration: none; font-weight: 600;">
-                🔗 Nguồn tin
-              </a>
-            ` : ''}
           </div>
         </div>
       `);
 
       // Click handler
       el.addEventListener('click', () => {
-        if (onDamageNewsClick) {
-          onDamageNewsClick(news);
-        }
         if (map.current) {
           map.current.flyTo({
-            center: [news.lon, news.lat],
-            zoom: 6.5,
+            center: [longitude, latitude],
+            zoom: 8,
             duration: 2000,
           });
         }
@@ -796,13 +796,13 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
 
       // Create and add marker
       const damageMarker = new mapboxgl.Marker({ element: el })
-        .setLngLat([news.lon, news.lat])
+        .setLngLat([longitude, latitude])
         .setPopup(popup)
         .addTo(map.current!);
 
-      damageNewsMarkers.current.push(damageMarker);
+      damageDetailMarkers.current.push(damageMarker);
     });
-  }, [damageNewsItems, activeTab, showDamageMarkers, onDamageNewsClick, mapReady]);
+  }, [damageDetailsItems, activeTab, showDamageMarkers, mapReady]);
 
   // Zoom controls callbacks
   const handleZoomIn = useCallback(() => {

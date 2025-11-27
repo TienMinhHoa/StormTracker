@@ -42,6 +42,8 @@ class Storm(Base):
     rescue_requests = relationship("RescueRequest", back_populates="storm")
     damage_assessments = relationship("DamageAssessment", back_populates="storm")
     forecasts = relationship("Forecast", back_populates="storm")
+    location_damages = relationship("LocationDamage", back_populates="storm")
+    damage_details = relationship("DamageDetail", back_populates="storm")
     
     
 class StormTrack(Base):
@@ -160,3 +162,27 @@ class LiveTracking(Base):
     created_at = Column(DateTime, server_default=func.now())
 
     storm = relationship("Storm")
+
+
+class LocationDamage(Base):
+    __tablename__ = "location_damages"
+
+    location_key = Column(String, primary_key=True)  # Format: "lat-lon"
+    storm_id = Column(String, ForeignKey("storms.storm_id"), nullable=False)
+    content = Column(JSON, nullable=False)  # JSON chứa chi tiết thiệt hại tại vị trí
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    modified_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    storm = relationship("Storm", back_populates="location_damages")
+
+
+class DamageDetail(Base):
+    __tablename__ = "damage_details"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    storm_id = Column(String, ForeignKey("storms.storm_id"), nullable=False)
+    content = Column(JSON, nullable=False)  # JSON chứa chi tiết thiệt hại
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    modified_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    storm = relationship("Storm", back_populates="damage_details")

@@ -96,7 +96,8 @@ class NewsSourceTables:
         lat: Optional[float] = None,
         lon: Optional[float] = None,
         thumbnail_url: Optional[str] = None,
-        category: Optional[str] = None
+        category: Optional[str] = None,
+        summary: Optional[str] = None
     ) -> Optional[NewsSourceDB]:
         news = await self.get_news_by_id(session, news_id)
         if not news:
@@ -118,6 +119,8 @@ class NewsSourceTables:
             news.thumbnail_url = thumbnail_url
         if category is not None:
             news.category = category
+        if summary is not None:
+            news.summary = summary
         
         await session.flush()
         await session.refresh(news)

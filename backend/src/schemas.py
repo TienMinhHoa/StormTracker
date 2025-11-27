@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, ConfigDict
-from typing import Literal, Optional
+from typing import Literal, Optional, List
 from datetime import datetime
 
 class HealthResponse(BaseModel):
@@ -252,3 +252,36 @@ class LiveTrackingResponse(BaseModel):
     status: Optional[str] = None
     data: Optional[dict] = None
     created_at: datetime
+
+
+# DamageDetail Schemas
+class DamageDetailCreate(BaseModel):
+    storm_id: str
+    content: dict  # JSON data containing damage details
+
+
+class DamageDetailUpdate(BaseModel):
+    content: dict  # JSON data containing damage details
+
+
+class DamageDetailResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    storm_id: str
+    content: dict
+    created_at: datetime
+    modified_at: datetime
+
+
+# DamageDetail Text Processing Schema
+class DamageTextProcessRequest(BaseModel):
+    storm_id: str = Field(..., description="ID of the storm")
+    damage_text: str = Field(..., description="Vietnamese text describing damages by location")
+
+
+class DamageTextProcessResponse(BaseModel):
+    success: bool
+    message: str
+    records_created: int
+    damage_records: List[dict]

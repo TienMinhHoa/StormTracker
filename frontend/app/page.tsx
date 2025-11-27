@@ -10,6 +10,7 @@ import { getNewsByStorm, getRescueNewsByStorm, type News } from './services/news
 import { getWarnings, type Warning } from './services/warningApi';
 import { getDamageNewsByStorm, type DamageNews } from './services/damageApi';
 import { getRescueRequestsByStorm, type RescueRequestResponse } from './services/rescueApi';
+import { getDamageDetailsByStorm, type DamageDetailRecord } from './services/damageDetailsApi';
 
 export default function Home() {
   const flyToLocationRef = useRef<((lng: number, lat: number, zoom?: number) => void) | null>(null);
@@ -26,8 +27,8 @@ export default function Home() {
   const [selectedWarning, setSelectedWarning] = useState<Warning | null>(null);
   const [selectedWarningTime, setSelectedWarningTime] = useState<string | null>(null);
   const [showDamageMarkers, setShowDamageMarkers] = useState(true); // Default to true
-  const [damageNewsItems, setDamageNewsItems] = useState<DamageNews[]>([]);
-  const [loadingDamageNews, setLoadingDamageNews] = useState(false);
+  const [damageDetailsItems, setDamageDetailsItems] = useState<DamageDetailRecord[]>([]);
+  const [loadingDamageDetails, setLoadingDamageDetails] = useState(false);
   const [showRescueForm, setShowRescueForm] = useState(false);
   const [rescueRequests, setRescueRequests] = useState<RescueRequestResponse[]>([]);
   const [loadingRescueRequests, setLoadingRescueRequests] = useState(false);
@@ -143,29 +144,29 @@ export default function Home() {
     fetchWarnings();
   }, [activeTab, showWarningMarkers, selectedWarningTime]);
 
-  // Fetch damage news when damage tab is active
+  // Fetch damage details when damage tab is active
   useEffect(() => {
-    const fetchDamageNews = async () => {
+    const fetchDamageDetails = async () => {
       if (activeTab !== 'damage' || !selectedStorm?.storm_id || !showDamageMarkers) {
-        setDamageNewsItems([]);
+        setDamageDetailsItems([]);
         return;
       }
 
       try {
-        setLoadingDamageNews(true);
-        console.log('🏗️ Fetching damage news for map...');
-        const data = await getDamageNewsByStorm(selectedStorm.storm_id);
-        setDamageNewsItems(data);
-        console.log(`✅ Loaded ${data.length} damage news for map`);
+        setLoadingDamageDetails(true);
+        console.log('📍 Fetching damage details for map...');
+        const data = await getDamageDetailsByStorm(selectedStorm.storm_id);
+        setDamageDetailsItems(data);
+        console.log(`✅ Loaded ${data.length} damage detail locations for map`);
       } catch (error) {
-        console.error('❌ Failed to load damage news for map:', error);
-        setDamageNewsItems([]);
+        console.error('❌ Failed to load damage details for map:', error);
+        setDamageDetailsItems([]);
       } finally {
-        setLoadingDamageNews(false);
+        setLoadingDamageDetails(false);
       }
     };
 
-    fetchDamageNews();
+    fetchDamageDetails();
   }, [activeTab, selectedStorm, showDamageMarkers]);
 
   // Fetch rescue requests when rescue tab is active
@@ -293,8 +294,8 @@ export default function Home() {
     }
   };
 
-  const handleDamageNewsClick = (damageNews: DamageNews) => {
-    console.log('🏗️ Damage news clicked:', damageNews.title);
+  const handleDamageDetailClick = (detail: DamageDetailRecord) => {
+    console.log('📍 Damage detail clicked:', detail.content.location_name);
 
     // Make sure we're on damage tab
     if (activeTab !== 'damage') {
@@ -302,8 +303,8 @@ export default function Home() {
     }
 
     // Zoom to damage location
-    if (flyToLocationRef.current && damageNews.lat && damageNews.lon) {
-      flyToLocationRef.current(damageNews.lon, damageNews.lat, 6.5);
+    if (flyToLocationRef.current && detail.content.latitude && detail.content.longitude) {
+      flyToLocationRef.current(detail.content.longitude, detail.content.latitude, 8);
     }
   };
 
@@ -338,7 +339,6 @@ export default function Home() {
         onNewsClick={handleNewsClick}
         onRescueClick={handleRescueClick}
         onDamageClick={handleDamageClick}
-        onDamageNewsClick={handleDamageNewsClick}
         onWarningClick={handleWarningClick}
         onTabChange={handleTabChange}
         onStormChange={handleStormChange}
@@ -381,11 +381,10 @@ export default function Home() {
           }))}
           newsItems={newsItems}
           warningItems={warningItems}
-          damageNewsItems={damageNewsItems}
+          damageDetailsItems={damageDetailsItems}
           activeTab={activeTab}
           onNewsClick={handleNewsClick}
           onWarningClick={handleWarningClick}
-          onDamageNewsClick={handleDamageNewsClick}
           selectedStorm={selectedStorm}
           showNewsMarkers={showNewsMarkers}
           showRescueMarkers={showRescueMarkers}

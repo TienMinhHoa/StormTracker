@@ -9,11 +9,12 @@ import {
   type DamageNews,
   normalizeSources 
 } from '../../services/damageApi';
+import DamageDetailsTab from './DamageDetailsTab';
+import type { DamageDetailRecord } from '../../services/damageDetailsApi';
 
 type DamageTabProps = {
   stormId?: string;
   onDamageClick?: (damage: DamageAssessment) => void;
-  onDamageNewsClick?: (news: DamageNews) => void;
   showDamageMarkers?: boolean;
   onShowDamageMarkersChange?: (show: boolean) => void;
 };
@@ -21,11 +22,10 @@ type DamageTabProps = {
 export default function DamageTab({ 
   stormId, 
   onDamageClick,
-  onDamageNewsClick,
   showDamageMarkers = true,
   onShowDamageMarkersChange
 }: DamageTabProps) {
-  const [activeSection, setActiveSection] = useState<'overview' | 'news'>('overview');
+  const [activeSection, setActiveSection] = useState<'overview' | 'details'>('overview');
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [damageData, setDamageData] = useState<DamageAssessment[]>([]);
   const [damageNews, setDamageNews] = useState<DamageNews[]>([]);
@@ -41,18 +41,11 @@ export default function DamageTab({
         return;
       }
 
-      // Skip fetching for live tracking mode
-      if (stormId === 'NOWLIVE1234') {
-        console.log('⏭️ Skipping damage fetch for live tracking mode');
-        setDamageData([]);
-        setLoading(false);
-        return;
-      }
-
       try {
         setLoading(true);
         const data = await getDamageByStorm(stormId);
         setDamageData(data);
+        console.log(`✅ Loaded ${data.length} damage assessments for storm ${stormId}`);
       } catch (error) {
         console.error('Failed to fetch damage data:', error);
         setDamageData([]);
@@ -72,19 +65,11 @@ export default function DamageTab({
         return;
       }
 
-      // Skip fetching for live tracking mode
-      if (stormId === 'NOWLIVE1234') {
-        console.log('⏭️ Skipping damage news fetch for live tracking mode');
-        setDamageNews([]);
-        setLoadingNews(false);
-        return;
-      }
-
       try {
         setLoadingNews(true);
         const data = await getDamageNewsByStorm(stormId);
         setDamageNews(data);
-        console.log(`✅ Loaded ${data.length} damage news items`);
+        console.log(`✅ Loaded ${data.length} damage news items for storm ${stormId}`);
       } catch (error) {
         console.error('Failed to fetch damage news:', error);
         setDamageNews([]);
@@ -146,6 +131,11 @@ export default function DamageTab({
     );
   }
 
+  const handleDetailClick = (detail: DamageDetailRecord) => {
+    console.log('📍 Damage detail clicked:', detail.content.location_name);
+    // Optionally zoom to location using coordinates from detail.content
+  };
+
   return (
     <div className="flex-1 overflow-y-auto scrollbar-thin">
       <div className="px-4 py-4 space-y-4">
@@ -162,14 +152,14 @@ export default function DamageTab({
             📊 Tổng quan
           </button>
           <button
-            onClick={() => setActiveSection('news')}
+            onClick={() => setActiveSection('details')}
             className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              activeSection === 'news'
+              activeSection === 'details'
                 ? 'bg-teal-500 text-white'
                 : 'bg-[#1c2127] text-gray-400 hover:text-white'
             }`}
           >
-            📰 Chi tiết ({damageNews.length})
+            📍 Chi tiết theo địa điểm
           </button>
         </div>
 
@@ -381,20 +371,26 @@ export default function DamageTab({
 
             {damageData.length === 0 && (
               <div className="text-center py-8 text-gray-400">
-                {stormId === 'NOWLIVE1234' ? (
-                  <div className="space-y-2">
-                    <p className="text-sm">🔴 Chế độ Live Tracking</p>
-                    <p className="text-xs">Dữ liệu thiệt hại chỉ có sẵn cho các cơn bão đã ghi nhận</p>
-                  </div>
-                ) : (
-                  <p className="text-sm">Không có dữ liệu thiệt hại</p>
-                )}
+                <p className="text-sm">Chưa có dữ liệu thiệt hại được ghi nhận</p>
+                <p className="text-xs mt-2">Dữ liệu sẽ được cập nhật khi có báo cáo thiệt hại mới</p>
               </div>
             )}
           </>
         )}
 
-        {/* Damage News Section */}
+        {/* Damage Details Section */}
+        {activeSection === 'details' && (
+          <>
+            <DamageDetailsTab
+              stormId={stormId}
+              onLocationClick={handleDetailClick}
+              showMarkers={showDamageMarkers}
+              onShowMarkersChange={onShowDamageMarkersChange}
+            />
+          </>
+        )}
+
+        {/* Removed News Section - now only Overview and Details tabs */}
         {activeSection === 'news' && (
           <>
             {/* Region Filter */}

@@ -16,7 +16,6 @@ type SidebarProps = {
   onNewsClick?: (news: NewsItem) => void;
   onRescueClick?: (rescue: RescueRequest) => void;
   onDamageClick?: (damage: any) => void;
-  onDamageNewsClick?: (damageNews: any) => void;
   onWarningClick?: (warning: any) => void;
   onTabChange?: (tab: Tab) => void;
   onStormChange?: (storm: Storm | null) => void;
@@ -41,7 +40,6 @@ export default function Sidebar({
   onNewsClick,
   onRescueClick,
   onDamageClick,
-  onDamageNewsClick,
   onWarningClick,
   onTabChange,
   onStormChange,
@@ -520,7 +518,6 @@ export default function Sidebar({
                 <DamageTab 
                   stormId={currentStorm?.storm_id} 
                   onDamageClick={onDamageClick}
-                  onDamageNewsClick={onDamageNewsClick}
                   showDamageMarkers={showDamageMarkers}
                   onShowDamageMarkersChange={onShowDamageMarkersChange}
                 />

@@ -276,16 +276,39 @@ async def main():
     from src.database import AsyncSessionLocal
     """Example usage"""
     # Sample text (example damage report)
-    parameters = {
-        "engine": "google_ai_mode",
-        "q": "thống kê thiệt hại do bão số 13 gây ra tại Việt Nam cho đến thời điểm hiện tại theo những tiêu chí sau: Thiệt hại về người(số người mất tích, bị thương, tử vong), Thiệt hại về nhà cửa tài sản, thiệt hại về hạ tầng kinh tế, thiệt hại về nông nghiệp sản xuất,  thiệt hại về môi trường và xã hội.",
-        "api_key": config.SERPAPI_API_KEY
-    }
-    url = "https://serpapi.com/search.json"
+    # parameters = {
+    #     "engine": "google_ai_mode",
+    #     "q": "thống kê thiệt hại do bão số 13 gây ra tại Việt Nam cho đến thời điểm hiện tại theo những tiêu chí sau: Thiệt hại về người(số người mất tích, bị thương, tử vong), Thiệt hại về nhà cửa tài sản, thiệt hại về hạ tầng kinh tế, thiệt hại về nông nghiệp sản xuất,  thiệt hại về môi trường và xã hội.",
+    #     "api_key": config.SERPAPI_API_KEY
+    # }
+    # url = "https://serpapi.com/search.json"
     
-    url = f"{url}?engine={parameters['engine']}&q={parameters['q']}&api_key={parameters['api_key']}"
-    data = await fetch_damage_data(url)
-    sample_text = format_blocks_group_source(data)
+    # url = f"{url}?engine={parameters['engine']}&q={parameters['q']}&api_key={parameters['api_key']}"
+    # data = await fetch_damage_data(url)
+    # sample_text = format_blocks_group_source(data)
+    sample_text = """
+    CẬP NHẬT TÌNH HÌNH THIỆT HẠI DO MƯA LŨ TẠI CÁC TỈNH MIỀN TRUNG
+(Cập nhật tính đến 8h00 ngày 24/11/2025) 
+1️⃣ Thiệt hại về người: 102 người chết, mất tích: 91 người chết (Quảng Trị 01, Huế 02, Đà Nẵng 02, Gia Lai 03, Đắk Lắk 63, Khánh Hòa 15 (tăng 01 do tìm thấy 01 người mất tích), Lâm Đồng 05); 11 người mất tích (Đà Nẵng 02, Đắk Lắk 08, Khánh Hòa 01).
+2️⃣ Về nhà:  221 nhà bị sập đổ: Quảng Ngãi 09, Gia Lai 127, Đắk Lắk 09, Lâm Đồng 76.
+✅933 nhà bị hư hỏng: Quảng Trị 03, Đà Nẵng 46, Quảng Ngãi 71, Gia Lai 59, Khánh Hòa 05, Lâm Đồng 749.
+✅200.992 nhà bị ngập: Gia Lai 19.200, Đắk Lắk 150.000, Khánh Hòa 30.655 (tăng 15.259 sau rà soát), Lâm Đồng 1.137. Hiện tỉnh Đắk Lắk còn 02 xã, tỉnh Lâm Đồng còn 127 hộ dân bị ngập.
+3️⃣Về nông nghiệp.
+✅82.147 ha lúa, hoa màu bị thiệt hại: Quảng Trị 79ha, Đà Nẵng 59ha, Đắk Lắk 63.000ha, Khánh Hòa 14.552ha (tăng 1.252ha), Lâm Đồng 4.457ha (tăng 11ha).
+✅ 117.067 ha cây trồng lâu năm bị thiệt hại: Quảng Trị 10ha, Đà Nẵng 53ha, Quảng Ngãi 04ha, Đắk Lắk 117.000ha.
+✅ 3.339.352 con gia súc, gia cầm bị chết, cuốn trôi: Quảng Trị 848 con, Đà Nẵng 352 con, Quảng Ngãi 29 con, Gia Lai 34.497 con, Đắk Lắk 3.200.000 con, Khánh Hòa 94.563 con (tăng 70.100 con), Lâm Đồng 9.063 con (tăng 13 con).
+✅ 1.157 ha thủy sản thiệt hại (Đắk Lắk 1.000ha, Khánh Hòa 157ha).
+4️⃣Về giao thông: Còn 15 vị trí trên Quốc lộ 20 và 27C bị sạt lở cục bộ gây ách tắc: Khánh Hòa: 12 vị trí trên QL27C; Lâm Đồng: 02 vị trí trên QL20 (tại Đèo Mimosa, Đèo D’ran) và 01 vị trí trên QL27C.
+5️⃣ Về đường sắt:
+✅ Còn lại 15 điểm đang khắc phục thuộc khu gian Đông Tác - Phú Hiệp và Phú Hiệp - Hảo Sơn do ảnh hưởng xả thuỷ điện của sông Ba Hạ.
+✅Kế hoạch chuyển tải: Bãi bỏ các tàu SE4, SNT2 ngày 23/11, SNT1 ngày 23/11, tàu SE21/22 ngày 24/11; chuyển tải hành khách trên tàu từ ga Giã (Khánh Hòa) đi đến ga Tuy Hòa (Đắk Lắk) và ngược lại (60km) trong các ngày 23-24/11/2025 đối với các tàu SE1, SE2, SE3, SE6, SE8, SE47. Dự kiến 24h00 ngày 25/11 trả đường toàn tuyến Hà Nội - TP. Hồ Chí Minh.
+6️⃣ Về điện: 1.191.085 KH mất điện, đã khôi phục 1.137.690KH, còn mất điện 53.395 KH (Gia Lai: 3.026KH; Đắk Lắk: 44.941KH; Khánh Hòa: 5.428KH).
+7️⃣ Về thông tin liên lạc
+- Mạng truyền số liệu chuyên dùng cấp 2 (từ tỉnh đến xã): Hiện còn 62/301 xã phường bị mất kết nối do mất điện (Gia Lai 16/135, Đắk Lắk 29/102, Khánh Hòa 17/64).
+- Mạng công cộng: 343 trạm BTS bị mất kết nối (Đắk Lắk 233, Khánh Hòa 110).
+▶️ Ước thiệt hại sơ bộ ban đầu về kinh tế: 13.078 tỷ đồng (Quảng Ngãi 650 tỷ đồng, Gia Lai 1.000 tỷ đồng, Đắk Lắk 5.330 tỷ đồng, Khánh Hòa 5.000 tỷ đồng, Lâm Đồng 1.098 tỷ đồng).
+▶️Hiện các địa phương đang tiếp tục rà soát, tổng hợp thiệt hại; dọn dẹp, vệ sinh môi trường và tổ chức khắc phục hậu quả thiên tai.
+    """
     # Initialize agent
     agent = DamageExtractionAgent()
     
@@ -298,7 +321,7 @@ async def main():
         async with session.begin():
             result = await agent.extract_and_save_to_db(
                 text=sample_text,
-                storm_id="2025305N10138",
+                storm_id="NOWLIVE1234",
                 session=session
             )
     
