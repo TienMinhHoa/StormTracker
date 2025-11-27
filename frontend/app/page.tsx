@@ -6,7 +6,7 @@ import { Sidebar } from './components/sidebar';
 import { NewsItem } from './components/news';
 import { RescueRequest, rescueRequests, RescueRequestForm } from './components/rescue';
 import type { Storm } from './services/stormApi';
-import { getNewsByStorm, type News } from './services/newsApi';
+import { getNewsByStorm, getRescueNewsByStorm, type News } from './services/newsApi';
 import { getWarnings, type Warning } from './services/warningApi';
 import { getDamageNewsByStorm, type DamageNews } from './services/damageApi';
 import { getRescueRequestsByStorm, type RescueRequestResponse } from './services/rescueApi';
@@ -31,6 +31,9 @@ export default function Home() {
   const [showRescueForm, setShowRescueForm] = useState(false);
   const [rescueRequests, setRescueRequests] = useState<RescueRequestResponse[]>([]);
   const [loadingRescueRequests, setLoadingRescueRequests] = useState(false);
+  const [rescueNewsItems, setRescueNewsItems] = useState<News[]>([]);
+  const [loadingRescueNews, setLoadingRescueNews] = useState(false);
+  const [showRescueNewsMarkers, setShowRescueNewsMarkers] = useState(true); // Default to true
 
   // Request location permission on first visit
   useEffect(() => {
@@ -190,6 +193,31 @@ export default function Home() {
     fetchRescueRequests();
   }, [activeTab, selectedStorm, showRescueMarkers]);
 
+  // Fetch rescue news when rescue tab is active
+  useEffect(() => {
+    const fetchRescueNews = async () => {
+      if (activeTab !== 'rescue' || !selectedStorm?.storm_id || !showRescueNewsMarkers) {
+        setRescueNewsItems([]);
+        return;
+      }
+
+      try {
+        setLoadingRescueNews(true);
+        console.log('📰 Fetching rescue news for map...');
+        const data = await getRescueNewsByStorm(selectedStorm.storm_id, 0, 100);
+        setRescueNewsItems(data);
+        console.log(`✅ Loaded ${data.length} rescue news for map`);
+      } catch (error) {
+        console.error('❌ Failed to load rescue news for map:', error);
+        setRescueNewsItems([]);
+      } finally {
+        setLoadingRescueNews(false);
+      }
+    };
+
+    fetchRescueNews();
+  }, [activeTab, selectedStorm, showRescueNewsMarkers]);
+
   const handleMapReady = (flyToLocation: (lng: number, lat: number, zoom?: number) => void) => {
     flyToLocationRef.current = flyToLocation;
   };
@@ -325,6 +353,8 @@ export default function Home() {
         onShowWarningMarkersChange={setShowWarningMarkers}
         showDamageMarkers={showDamageMarkers}
         onShowDamageMarkersChange={setShowDamageMarkers}
+        showRescueNewsMarkers={showRescueNewsMarkers}
+        onShowRescueNewsMarkersChange={setShowRescueNewsMarkers}
         onShowRescueForm={() => setShowRescueForm(true)}
         onWarningTimeChange={setSelectedWarningTime}
       />
@@ -361,6 +391,8 @@ export default function Home() {
           showRescueMarkers={showRescueMarkers}
           showWarningMarkers={showWarningMarkers}
           showDamageMarkers={showDamageMarkers}
+          rescueNewsItems={rescueNewsItems}
+          showRescueNewsMarkers={showRescueNewsMarkers}
           onRescueRequestUpdate={async (requestId: number, status: 'completed' | 'safe_reported') => {
             try {
               const { updateRescueRequest } = await import('./services/rescueApi');

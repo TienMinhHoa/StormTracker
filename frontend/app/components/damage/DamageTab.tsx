@@ -31,6 +31,7 @@ export default function DamageTab({
   const [damageNews, setDamageNews] = useState<DamageNews[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingNews, setLoadingNews] = useState(false);
+  const [selectedRegion, setSelectedRegion] = useState<string>('all');
 
   // Fetch damage data from API
   useEffect(() => {
@@ -396,6 +397,58 @@ export default function DamageTab({
         {/* Damage News Section */}
         {activeSection === 'news' && (
           <>
+            {/* Region Filter */}
+            <div className="bg-[#1c2127] rounded-lg p-3">
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                🗺️ Lọc theo khu vực
+              </label>
+              <select
+                value={selectedRegion}
+                onChange={(e) => setSelectedRegion(e.target.value)}
+                className="w-full px-3 py-2 bg-[#0f1419] border border-gray-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
+              >
+                <option value="all">Tất cả khu vực</option>
+                {(() => {
+                  // Extract unique regions from damage news
+                  const regions = new Set<string>();
+                  damageNews.forEach(news => {
+                    // Extract region from content or title
+                    const text = `${news.title} ${news.content}`.toLowerCase();
+                    
+                    // Common Vietnamese provinces/regions
+                    const provincePatterns = [
+                      'hà nội', 'hồ chí minh', 'đà nẵng', 'hải phòng', 'cần thơ',
+                      'quảng ninh', 'quảng nam', 'quảng ngãi', 'quảng bình', 'quảng trị',
+                      'thừa thiên huế', 'bình định', 'phú yên', 'khánh hòa', 'ninh thuận', 'bình thuận',
+                      'nghệ an', 'hà tĩnh', 'thanh hóa', 'nam định', 'thái bình',
+                      'lạng sơn', 'cao bằng', 'bắc giang', 'bắc ninh', 'hải dương',
+                      'vĩnh phúc', 'phú thọ', 'yên bái', 'lào cai', 'lai châu',
+                      'sơn la', 'điện biên', 'hoà bình', 'tuyên quang', 'bắc kạn',
+                      'thái nguyên', 'hà giang', 'lâm đồng', 'đắk lắk', 'đắk nông',
+                      'gia lai', 'kon tum', 'bình phước', 'tây ninh', 'bình dương',
+                      'đồng nai', 'bà rịa vũng tàu', 'long an', 'tiền giang', 'bến tre',
+                      'trà vinh', 'vĩnh long', 'đồng tháp', 'an giang', 'kiên giang',
+                      'hậu giang', 'sóc trăng', 'bạc liêu', 'cà mau'
+                    ];
+                    
+                    for (const province of provincePatterns) {
+                      if (text.includes(province)) {
+                        // Capitalize first letter of each word
+                        const formatted = province.split(' ').map(word => 
+                          word.charAt(0).toUpperCase() + word.slice(1)
+                        ).join(' ');
+                        regions.add(formatted);
+                      }
+                    }
+                  });
+                  
+                  return Array.from(regions).sort().map(region => (
+                    <option key={region} value={region}>{region}</option>
+                  ));
+                })()}
+              </select>
+            </div>
+
             {loadingNews ? (
               <div className="flex items-center justify-center py-8">
                 <div className="text-center">
@@ -403,9 +456,26 @@ export default function DamageTab({
                   <p className="text-gray-400">Đang tải tin tức thiệt hại...</p>
                 </div>
               </div>
-            ) : damageNews.length > 0 ? (
+            ) : damageNews.length > 0 ? (() => {
+              // Filter news by selected region
+              const filteredNews = selectedRegion === 'all' 
+                ? damageNews 
+                : damageNews.filter(news => {
+                    const text = `${news.title} ${news.content}`.toLowerCase();
+                    return text.includes(selectedRegion.toLowerCase());
+                  });
+
+              if (filteredNews.length === 0) {
+                return (
+                  <div className="text-center py-8 text-gray-400">
+                    <p className="text-sm">Không có tin tức thiệt hại cho khu vực này</p>
+                  </div>
+                );
+              }
+
+              return (
               <div className="space-y-3">
-                {damageNews.map((news) => (
+                {filteredNews.map((news) => (
                   <div
                     key={news.news_id}
                     onClick={() => handleDamageNewsClick(news)}
@@ -454,7 +524,8 @@ export default function DamageTab({
                   </div>
                 ))}
               </div>
-            ) : (
+              );
+            })() : (
               <div className="text-center py-8 text-gray-400">
                 <p className="text-sm">Không có tin tức thiệt hại</p>
               </div>

@@ -31,6 +31,17 @@ type MapProps = {
   showWarningMarkers?: boolean;
   showDamageMarkers?: boolean;
   damageNewsItems?: DamageNews[];
+  rescueNewsItems?: Array<{
+    news_id: number;
+    title: string;
+    content: string;
+    lat: number;
+    lon: number;
+    published_at: string;
+    thumbnail_url: string;
+    source_url: string;
+  }>;
+  showRescueNewsMarkers?: boolean;
   warningItems?: Array<{ 
     id: number; 
     lat: number; 
@@ -46,7 +57,7 @@ type MapProps = {
   onRescueRequestUpdate?: (requestId: number, status: 'completed' | 'safe_reported') => Promise<void>;
 };
 
-export default function Map({ onMapReady, rescueRequests = [], newsItems = [], activeTab = 'forecast', onNewsClick, onDamageNewsClick, selectedStorm, showNewsMarkers = true, showRescueMarkers = true, showWarningMarkers = true, showDamageMarkers = true, damageNewsItems = [], warningItems = [], onWarningClick, onRescueRequestUpdate }: MapProps) {
+export default function Map({ onMapReady, rescueRequests = [], newsItems = [], activeTab = 'forecast', onNewsClick, onDamageNewsClick, selectedStorm, showNewsMarkers = true, showRescueMarkers = true, showWarningMarkers = true, showDamageMarkers = true, damageNewsItems = [], rescueNewsItems = [], showRescueNewsMarkers = true, warningItems = [], onWarningClick, onRescueRequestUpdate }: MapProps) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const marker = useRef<mapboxgl.Marker | null>(null);
@@ -54,6 +65,7 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
   const newsMarkers = useRef<mapboxgl.Marker[]>([]);
   const warningMarkers = useRef<mapboxgl.Marker[]>([]);
   const damageNewsMarkers = useRef<mapboxgl.Marker[]>([]);
+  const rescueNewsMarkers = useRef<mapboxgl.Marker[]>([]);
   const [mapState, setMapState] = useState({
     lat: 21.0278,
     lng: 105.8342,
@@ -587,6 +599,107 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
     });
   }, [warningItems, activeTab, showWarningMarkers, onWarningClick, mapReady]);
 
+  // Rescue news markers effect
+  useEffect(() => {
+    if (!map.current || !mapReady) return;
+
+    // Clear existing rescue news markers
+    rescueNewsMarkers.current.forEach(marker => marker.remove());
+    rescueNewsMarkers.current = [];
+
+    // Only show rescue news markers when rescue tab is active and toggle is on
+    if (activeTab !== 'rescue' || !showRescueNewsMarkers || rescueNewsItems.length === 0) return;
+
+    console.log(`📰 Adding ${rescueNewsItems.length} rescue news markers to map`);
+
+    rescueNewsItems.forEach((news) => {
+      if (!news.lat || !news.lon) return;
+
+      // Create marker element - blue icon for rescue news
+      const el = document.createElement('div');
+      el.className = 'rescue-news-marker';
+      el.style.width = '36px';
+      el.style.height = '36px';
+      el.style.borderRadius = '50%';
+      el.style.backgroundColor = '#2563eb';
+      el.style.border = '3px solid white';
+      el.style.boxShadow = '0 3px 10px rgba(0, 0, 0, 0.4)';
+      el.style.cursor = 'pointer';
+      el.style.display = 'flex';
+      el.style.alignItems = 'center';
+      el.style.justifyContent = 'center';
+      el.style.fontWeight = 'bold';
+      el.style.color = 'white';
+      el.style.fontSize = '18px';
+      el.innerHTML = '📰';
+
+      // Create popup with news preview
+      const popup = new mapboxgl.Popup({ 
+        offset: 25, 
+        closeButton: true,
+        className: 'rescue-news-popup',
+        maxWidth: '320px'
+      }).setHTML(`
+        <div style="padding: 14px; background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%); border-radius: 8px;">
+          ${news.thumbnail_url ? `
+            <img src="${news.thumbnail_url}" 
+                 style="width: 100%; height: 140px; object-fit: cover; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.3);" 
+                 alt="Ảnh tin tức"
+                 onerror="this.src='https://cdnphoto.dantri.com.vn/V0A7pXa4T8wsbhHMmWmZti84Kkk=/2025/11/07/da-nang-1762483851451.jpg'" />
+          ` : ''}
+          <div style="background: rgba(37, 99, 235, 0.2); padding: 10px; border-radius: 6px; border-left: 3px solid #2563eb; margin-bottom: 10px;">
+            <h3 style="margin: 0; font-weight: bold; color: #93c5fd; font-size: 15px; line-height: 1.4;">
+              📰 ${news.title}
+            </h3>
+          </div>
+          <div style="background: rgba(30, 58, 138, 0.3); padding: 10px; border-radius: 6px; margin-bottom: 10px;">
+            <p style="margin: 0; font-size: 13px; color: #dbeafe; line-height: 1.6;">
+              ${news.content.length > 150 ? news.content.substring(0, 150) + '...' : news.content}
+            </p>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 8px; border-top: 1px solid rgba(59, 130, 246, 0.3);">
+            <span style="font-size: 11px; color: #bfdbfe;">
+              📅 ${new Date(news.published_at).toLocaleDateString('vi-VN', { 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </span>
+            ${news.source_url ? `
+              <a href="${news.source_url}" 
+                 target="_blank" 
+                 rel="noopener noreferrer"
+                 style="color: #60a5fa; font-size: 11px; text-decoration: none; font-weight: 600;">
+                🔗 Nguồn tin
+              </a>
+            ` : ''}
+          </div>
+        </div>
+      `);
+
+      // Click handler - zoom to news location
+      el.addEventListener('click', () => {
+        if (map.current) {
+          map.current.flyTo({
+            center: [news.lon, news.lat],
+            zoom: 6.5,
+            duration: 2000,
+          });
+        }
+      });
+
+      // Create and add marker
+      const rescueNewsMarker = new mapboxgl.Marker({ element: el })
+        .setLngLat([news.lon, news.lat])
+        .setPopup(popup)
+        .addTo(map.current!);
+
+      rescueNewsMarkers.current.push(rescueNewsMarker);
+    });
+  }, [rescueNewsItems, activeTab, showRescueNewsMarkers, mapReady]);
+
   // Damage news markers effect
   useEffect(() => {
     if (!map.current || !mapReady) return;
@@ -621,47 +734,49 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
       el.style.fontSize = '16px';
       el.innerHTML = '🏗️';
 
-      // Create popup with news preview
-      const truncatedTitle = news.title.length > 60 ? news.title.substring(0, 60) + '...' : news.title;
-      const truncatedContent = news.content.length > 100 ? news.content.substring(0, 100) + '...' : news.content;
-      
+      // Create popup with news preview - show full title and content
       const popup = new mapboxgl.Popup({ 
         offset: 25, 
-        closeButton: false,
+        closeButton: true,
         className: 'damage-news-popup',
-        maxWidth: '300px'
+        maxWidth: '320px'
       }).setHTML(`
-        <div style="padding: 12px;">
+        <div style="padding: 14px; background: linear-gradient(135deg, #1f2937 0%, #111827 100%); border-radius: 8px;">
           ${news.thumbnail_url ? `
             <img src="${news.thumbnail_url}" 
-                 style="width: 100%; height: 120px; object-fit: cover; border-radius: 6px; margin-bottom: 8px;" 
-                 alt="${truncatedTitle}"
+                 style="width: 100%; height: 140px; object-fit: cover; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.3);" 
+                 alt="Ảnh tin tức"
                  onerror="this.src='https://cdnphoto.dantri.com.vn/V0A7pXa4T8wsbhHMmWmZti84Kkk=/2025/11/07/da-nang-1762483851451.jpg'" />
           ` : ''}
-          <h3 style="margin: 0 0 8px 0; font-weight: bold; color: #ef4444; font-size: 14px;">
-            ${truncatedTitle}
-          </h3>
-          <p style="margin: 4px 0; font-size: 12px; color: #666; line-height: 1.4;">
-            ${truncatedContent}
-          </p>
-          <hr style="margin: 8px 0; border: none; border-top: 1px solid #ddd;" />
-          <p style="margin: 4px 0; font-size: 11px; color: #999;">
-            📅 ${new Date(news.published_at).toLocaleDateString('vi-VN', { 
-              year: 'numeric', 
-              month: 'short', 
-              day: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit'
-            })}
-          </p>
-          ${news.source_url ? `
-            <a href="${news.source_url}" 
-               target="_blank" 
-               rel="noopener noreferrer"
-               style="display: inline-block; margin-top: 6px; color: #06b6d4; font-size: 11px; text-decoration: none;">
-              🔗 Xem nguồn tin →
-            </a>
-          ` : ''}
+          <div style="background: rgba(239, 68, 68, 0.1); padding: 10px; border-radius: 6px; border-left: 3px solid #ef4444; margin-bottom: 10px;">
+            <h3 style="margin: 0; font-weight: bold; color: #fca5a5; font-size: 15px; line-height: 1.4;">
+              🏗️ ${news.title}
+            </h3>
+          </div>
+          <div style="background: rgba(55, 65, 81, 0.5); padding: 10px; border-radius: 6px; margin-bottom: 10px;">
+            <p style="margin: 0; font-size: 13px; color: #d1d5db; line-height: 1.6;">
+              ${news.content}
+            </p>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 8px; border-top: 1px solid rgba(75, 85, 99, 0.5);">
+            <span style="font-size: 11px; color: #9ca3af;">
+              📅 ${new Date(news.published_at).toLocaleDateString('vi-VN', { 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </span>
+            ${news.source_url ? `
+              <a href="${news.source_url}" 
+                 target="_blank" 
+                 rel="noopener noreferrer"
+                 style="color: #14b8a6; font-size: 11px; text-decoration: none; font-weight: 600;">
+                🔗 Nguồn tin
+              </a>
+            ` : ''}
+          </div>
         </div>
       `);
 

@@ -54,21 +54,31 @@ export default function StormForecast({ stormId }: StormForecastProps) {
     fetchForecast();
   }, [stormId]);
 
-  const formatValue = (value: number | string | undefined): string => {
+  const formatValue = (value: number | string | null | undefined): string => {
     if (value === undefined || value === null) return 'N/A';
     return String(value);
   };
 
   const formatDate = (dateString: string) => {
     try {
-      const date = new Date(dateString);
-      return date.toLocaleString('vi-VN', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
+      let date: Date;
+      
+      if (selectedSource === 'nchmf') {
+        // NCHMF: already in Vietnam timezone, treat as local time
+        const cleanDateString = dateString.replace('Z', '');
+        date = new Date(cleanDateString);
+      } else {
+        // JTWC: UTC time, convert to Vietnam timezone (+7)
+        date = new Date(dateString);
+      }
+      
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+      const hour = String(date.getHours()).padStart(2, '0');
+      const minute = String(date.getMinutes()).padStart(2, '0');
+      
+      return `${day}/${month}/${year} ${hour}:${minute}`;
     } catch {
       return dateString;
     }
@@ -122,10 +132,14 @@ export default function StormForecast({ stormId }: StormForecastProps) {
 
   const activeForecast: ForecastData | null = 
     selectedSource === 'nchmf' ? forecast.nchmf || null : forecast.jtwc || null;
-
+  
   const hasNCHMF = !!forecast.nchmf;
   const hasJTWC = !!forecast.jtwc;
-
+  if (activeForecast) {
+    console.log('🌀 Active Forecast Source:', activeForecast.current.time);
+  } else {
+    console.log('🌀 Active Forecast Source: null');
+  }
   return (
     <div className="bg-gradient-to-br from-blue-900/40 to-purple-900/40 rounded-lg p-4 border border-blue-500/30">
       {/* Header with Source Toggle */}
@@ -193,14 +207,14 @@ export default function StormForecast({ stormId }: StormForecastProps) {
               <div className="space-y-1">
                 <div className="text-gray-400">💨 Sức gió</div>
                 <div className="text-white font-medium">
-                  Cấp {formatValue(activeForecast.current.intensity.wind)} ({formatValue(activeForecast.current.intensity.gust)} giật)
+                  {formatValue(activeForecast.current.intensity.wind_kt)} kt (giật {formatValue(activeForecast.current.intensity.gust_kt)} kt)
                 </div>
               </div>
 
               <div className="space-y-1">
                 <div className="text-gray-400">➡️ Di chuyển</div>
                 <div className="text-white font-medium">
-                  {activeForecast.current.movement.direction}, {formatValue(activeForecast.current.movement.speed_kmh)} km/h
+                  {activeForecast.current.movement.direction || 'N/A'}, {formatValue(activeForecast.current.movement.speed_kts)} kts
                 </div>
               </div>
             </div>
@@ -242,13 +256,13 @@ export default function StormForecast({ stormId }: StormForecastProps) {
                       <div>
                         <span className="text-gray-400">💨 </span>
                         <span className="text-white">
-                          Cấp {formatValue(item.intensity.wind)} ({formatValue(item.intensity.gust)} giật)
+                          {formatValue(item.intensity.wind_kt)} kt (giật {formatValue(item.intensity.gust_kt)} kt)
                         </span>
                       </div>
                       <div className="col-span-2">
                         <span className="text-gray-400">➡️ </span>
                         <span className="text-white">
-                          {item.movement.direction}, {formatValue(item.movement.speed_kmh)} km/h
+                          {item.movement.direction || 'N/A'}, {formatValue(item.movement.speed_kts)} kts
                         </span>
                       </div>
 
@@ -282,7 +296,7 @@ export default function StormForecast({ stormId }: StormForecastProps) {
                 <div>
                   <span className="text-gray-400">➡️ Di chuyển: </span>
                   <span className="text-white">
-                    {activeForecast.long_range.movement.direction}, {formatValue(activeForecast.long_range.movement.speed_kmh)} km/h
+                    {activeForecast.long_range.movement.direction || 'N/A'}, {formatValue(activeForecast.long_range.movement.speed_kts)} kts
                   </span>
                 </div>
                 <div>

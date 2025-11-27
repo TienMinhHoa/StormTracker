@@ -98,16 +98,19 @@ type RescueTabProps = {
   stormId?: string | number;
   showRescueMarkers?: boolean;
   onShowRescueMarkersChange?: (show: boolean) => void;
+  showRescueNewsMarkers?: boolean;
+  onShowRescueNewsMarkersChange?: (show: boolean) => void;
   onShowRescueForm?: () => void;
 };
 
-export default function RescueTab({ onRescueClick, onRescueNewsClick, stormId, showRescueMarkers = true, onShowRescueMarkersChange, onShowRescueForm }: RescueTabProps) {
+export default function RescueTab({ onRescueClick, onRescueNewsClick, stormId, showRescueMarkers = true, onShowRescueMarkersChange, showRescueNewsMarkers = true, onShowRescueNewsMarkersChange, onShowRescueForm }: RescueTabProps) {
   const [activeSection, setActiveSection] = useState<'requests' | 'news'>('requests');
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [rescueNews, setRescueNews] = useState<News[]>([]);
   const [loadingNews, setLoadingNews] = useState(false);
   const [rescueRequests, setRescueRequests] = useState<RescueRequest[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Fetch rescue requests from API
   useEffect(() => {
@@ -257,17 +260,49 @@ export default function RescueTab({ onRescueClick, onRescueNewsClick, stormId, s
               </div>
             </div>
 
-            {/* Header with Add Button - Centered */}
-            <div className="flex items-center justify-center">
-              <button
-                onClick={() => onShowRescueForm?.()}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            {/* Search and Add Button */}
+            <div className="space-y-3">
+              {/* Search Box */}
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Tìm theo tên hoặc số điện thoại..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full px-4 py-2 pl-10 bg-[#1c2127] border border-gray-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none"
+                />
+                <svg 
+                  className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
-                Gửi cầu cứu
-              </button>
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+
+              {/* Add Button */}
+              <div className="flex items-center justify-center">
+                <button
+                  onClick={() => onShowRescueForm?.()}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Gửi cầu cứu
+                </button>
+              </div>
             </div>
 
             {/* Marker Toggle */}
@@ -323,9 +358,29 @@ export default function RescueTab({ onRescueClick, onRescueNewsClick, stormId, s
               <div className="text-center py-8 text-gray-400">
                 <p className="text-sm">Không có yêu cầu cứu hộ nào</p>
               </div>
-            ) : (
+            ) : (() => {
+              // Filter requests based on search query
+              const filteredRequests = rescueRequests.filter(request => {
+                if (!searchQuery) return true;
+                const query = searchQuery.toLowerCase();
+                return (
+                  request.name.toLowerCase().includes(query) ||
+                  request.phone.includes(query)
+                );
+              });
+
+              if (filteredRequests.length === 0) {
+                return (
+                  <div className="text-center py-8 text-gray-400">
+                    <p className="text-sm">Không tìm thấy yêu cầu cứu hộ nào</p>
+                    <p className="text-xs mt-2">Thử tìm kiếm với từ khóa khác</p>
+                  </div>
+                );
+              }
+
+              return (
               <div className="flex flex-col gap-3">
-                {rescueRequests.map((request) => {
+                {filteredRequests.map((request) => {
                   const colors = urgencyColors[request.urgency];
                   const isExpanded = expandedId === request.id;
 
@@ -421,13 +476,31 @@ export default function RescueTab({ onRescueClick, onRescueNewsClick, stormId, s
                   );
                 })}
               </div>
-            )}
+              );
+            })()}
           </>
         )}
 
         {/* Rescue News Section */}
         {activeSection === 'news' && (
           <>
+            {/* Marker Toggle for Rescue News */}
+            {onShowRescueNewsMarkersChange && (
+              <div className="bg-[#1c2127] rounded-lg p-3">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={showRescueNewsMarkers}
+                    onChange={(e) => onShowRescueNewsMarkersChange(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-600 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-900"
+                  />
+                  <span className="text-sm text-gray-300">
+                    📰 Hiển thị marker tin tức cứu hộ trên bản đồ
+                  </span>
+                </label>
+              </div>
+            )}
+
             {loadingNews ? (
               <div className="flex items-center justify-center py-8">
                 <div className="text-center">
@@ -436,53 +509,36 @@ export default function RescueTab({ onRescueClick, onRescueNewsClick, stormId, s
                 </div>
               </div>
             ) : rescueNews.length > 0 ? (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {rescueNews.map((news) => (
                   <div
                     key={news.news_id}
                     onClick={() => handleRescueNewsClick(news)}
-                    className="bg-[#1c2127] rounded-lg overflow-hidden hover:ring-2 hover:ring-red-500 transition-all cursor-pointer"
+                    className="bg-[#1c2127] rounded-lg overflow-hidden hover:ring-2 hover:ring-red-500 transition-all cursor-pointer border border-gray-700"
                   >
-                    <div className="flex gap-3 p-3">
-                      {news.thumbnail_url && (
-                        <img
-                          src={news.thumbnail_url}
-                          alt={news.title}
-                          className="w-24 h-24 object-cover rounded"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.src = 'https://cdnphoto.dantri.com.vn/V0A7pXa4T8wsbhHMmWmZti84Kkk=/2025/11/07/da-nang-1762483851451.jpg';
-                          }}
-                        />
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-white font-semibold text-sm mb-1 line-clamp-2">
+                    <div className="p-3">
+                      <div className="flex items-start gap-2 mb-2">
+                        <span className="text-base">📰</span>
+                        <h3 className="text-white font-medium text-sm line-clamp-2 flex-1">
                           {news.title}
                         </h3>
-                        <p className="text-gray-400 text-xs mb-2 line-clamp-2">
-                          {news.content}
-                        </p>
-                        <div className="flex items-center gap-2 text-xs text-gray-500">
-                          <span>📅 {formatDate(news.published_at)}</span>
-                          {news.lat && news.lon && (
-                            <span>📍 {news.lat.toFixed(4)}, {news.lon.toFixed(4)}</span>
-                          )}
-                        </div>
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-gray-500">
+                        <span className="flex items-center gap-1">
+                          📅 {new Date(news.published_at).toLocaleDateString('vi-VN', { 
+                            day: '2-digit', 
+                            month: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </span>
+                        {news.lat && news.lon && (
+                          <span className="flex items-center gap-1">
+                            📍 {news.lat.toFixed(2)}°, {news.lon.toFixed(2)}°
+                          </span>
+                        )}
                       </div>
                     </div>
-                    {news.source_url && (
-                      <div className="px-3 pb-3">
-                        <a
-                          href={news.source_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-red-400 hover:text-red-300 text-xs flex items-center gap-1"
-                        >
-                          🔗 Xem nguồn tin
-                        </a>
-                      </div>
-                    )}
                   </div>
                 ))}
               </div>

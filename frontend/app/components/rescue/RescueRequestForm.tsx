@@ -27,8 +27,29 @@ export default function RescueRequestForm({ onBack, stormId }: RescueRequestForm
     if (navigator.geolocation) {
       setUseCurrentLocation(true);
       navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setCoordinates([position.coords.longitude, position.coords.latitude]);
+        async (position) => {
+          const lon = position.coords.longitude;
+          const lat = position.coords.latitude;
+          setCoordinates([lon, lat]);
+          
+          // Reverse geocoding to get address
+          try {
+            const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
+            const response = await fetch(
+              `https://api.mapbox.com/geocoding/v5/mapbox.places/${lon},${lat}.json?access_token=${mapboxToken}&language=vi`
+            );
+            
+            if (response.ok) {
+              const data = await response.json();
+              if (data.features && data.features.length > 0) {
+                const address = data.features[0].place_name;
+                setFormData(prev => ({ ...prev, address }));
+              }
+            }
+          } catch (error) {
+            console.error('Error getting address:', error);
+            // Continue without address, user can enter manually
+          }
         },
         (error) => {
           console.error('Error getting location:', error);

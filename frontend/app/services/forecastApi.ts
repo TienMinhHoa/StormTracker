@@ -12,13 +12,13 @@ export interface ForecastPosition {
 }
 
 export interface ForecastIntensity {
-  wind: number | string;
-  gust: number | string;
+  wind_kt: number | string;
+  gust_kt: number | string;
 }
 
 export interface ForecastMovement {
-  direction: string;
-  speed_kmh: number | string;
+  direction: string | null;
+  speed_kts: number | string | null;
 }
 
 export interface ForecastDangerZone {

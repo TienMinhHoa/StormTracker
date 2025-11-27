@@ -32,6 +32,8 @@ type SidebarProps = {
   onWarningTimeChange?: (time: string | null) => void;
   showDamageMarkers?: boolean;
   onShowDamageMarkersChange?: (show: boolean) => void;
+  showRescueNewsMarkers?: boolean;
+  onShowRescueNewsMarkersChange?: (show: boolean) => void;
   onShowRescueForm?: () => void;
 };
 
@@ -54,6 +56,8 @@ export default function Sidebar({
   onShowWarningMarkersChange,
   showDamageMarkers = true,
   onShowDamageMarkersChange,
+  showRescueNewsMarkers = true,
+  onShowRescueNewsMarkersChange,
   onShowRescueForm,
   onWarningTimeChange
 }: SidebarProps) {
@@ -507,6 +511,8 @@ export default function Sidebar({
                   stormId={currentStorm?.storm_id}
                   showRescueMarkers={showRescueMarkers}
                   onShowRescueMarkersChange={onShowRescueMarkersChange}
+                  showRescueNewsMarkers={showRescueNewsMarkers}
+                  onShowRescueNewsMarkersChange={onShowRescueNewsMarkersChange}
                   onShowRescueForm={onShowRescueForm}
                 />
               )}
