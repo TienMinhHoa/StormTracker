@@ -12,7 +12,12 @@ export const vertexShaderSource = `
   
   void main() {
     gl_Position = vec4(a_position, 0.0, 1.0);
-    v_texCoord = a_texCoord;
+    
+    // QUAN TRỌNG: Flip Y-axis cho texture coordinates
+    // GeoTIFF có Y từ trên xuống (90° → -90°)
+    // Nhưng WebGL texture có origin ở dưới trái
+    // => Flip Y để match với coordinate địa lý
+    v_texCoord = vec2(a_texCoord.x, 1.0 - a_texCoord.y);
   }
 `;
 
@@ -253,12 +258,12 @@ export function setupQuadGeometry(gl: WebGLRenderingContext, program: WebGLProgr
      1,  1,  // top-right
   ]);
 
-  // Texture coordinates (flipped Y for correct orientation)
+  // Texture coordinates (NO flip needed - TIFF already has top=90°N, bottom=-90°S)
   const texCoords = new Float32Array([
-    0, 1,  // bottom-left
-    1, 1,  // bottom-right
-    0, 0,  // top-left
-    1, 0,  // top-right
+    0, 0,  // bottom-left (maps to TIFF bottom = -90°S)
+    1, 0,  // bottom-right
+    0, 1,  // top-left (maps to TIFF top = 90°N)
+    1, 1,  // top-right
   ]);
 
   // Position buffer

@@ -93,10 +93,18 @@ export function renderWindyStyle(
   // Create ImageData for faster rendering
   const imageData = ctx.createImageData(width, height);
 
+  // QUAN TRỌNG: Mapping TIFF pixels sang canvas
+  // - TIFF của bạn: Upper Left = (-180, 90), Lower Right = (180, -90)
+  //   => Y = 0 (top) = 90°N, Y = height-1 (bottom) = -90°S
+  // - Canvas: Y = 0 ở top, Y = height-1 ở bottom
+  // - Mapbox coordinates: [west, north] = top-left, [east, south] = bottom-right
+  // => Vì TIFF đã đúng thứ tự (top = 90°, bottom = -90°), KHÔNG CẦN flip!
+  
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
-      const idx = y * width + x;
-      const value = data[idx];
+      // Đọc data từ TIFF (Y từ trên xuống: 90° → -90°)
+      const dataIdx = y * width + x;
+      const value = data[dataIdx];
 
       // Normalize value to 0-1
       const normalized = Math.max(0, Math.min(1, (value - minValue) / range));
@@ -104,8 +112,10 @@ export function renderWindyStyle(
       // Get color from Windy.com color scale
       const [r, g, b] = getWindyColor(normalized);
 
-      // Set pixel
+      // Viết trực tiếp vào canvas KHÔNG flip
+      // Vì TIFF đã có thứ tự đúng: top = 90°N, bottom = -90°S
       const pixelIdx = (y * width + x) * 4;
+      
       imageData.data[pixelIdx] = r;     // R
       imageData.data[pixelIdx + 1] = g; // G
       imageData.data[pixelIdx + 2] = b; // B
@@ -115,6 +125,8 @@ export function renderWindyStyle(
 
   // Put image data to canvas
   ctx.putImageData(imageData, 0, 0);
+  
+  console.log(`✅ Rendered wind canvas: ${width}x${height} (TIFF coordinate system preserved: top=90°N, bottom=-90°S)`);
 }
 
 // Legacy exports for compatibility

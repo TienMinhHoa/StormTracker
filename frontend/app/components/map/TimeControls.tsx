@@ -145,13 +145,60 @@ export default function TimeControls({
     ? (currentIndex / (availableTimestamps.length - 1)) * 100 
     : 0;
 
+  // Navigation handlers
+  const handlePrevious = useCallback(() => {
+    if (currentIndex > 0) {
+      const newIndex = currentIndex - 1;
+      const timestamp = availableTimestamps[newIndex]?.timestamp;
+      if (timestamp) {
+        setCurrentIndex(newIndex);
+        onTimestampChange?.(timestamp);
+      }
+    }
+  }, [currentIndex, availableTimestamps, onTimestampChange]);
+
+  const handleNext = useCallback(() => {
+    if (currentIndex < availableTimestamps.length - 1) {
+      const newIndex = currentIndex + 1;
+      const timestamp = availableTimestamps[newIndex]?.timestamp;
+      if (timestamp) {
+        setCurrentIndex(newIndex);
+        onTimestampChange?.(timestamp);
+      }
+    }
+  }, [currentIndex, availableTimestamps, onTimestampChange]);
+
+  const isFirstTimestamp = currentIndex === 0;
+  const isLastTimestamp = currentIndex === availableTimestamps.length - 1;
+
   return (
     <div className={className}>
-      <div className="flex items-center gap-6 w-full">
+      <div className="flex items-center gap-3 w-full">
+        {/* Previous Button */}
+        <button
+          onClick={handlePrevious}
+          disabled={isFirstTimestamp || availableTimestamps.length === 0}
+          className={`flex items-center justify-center w-9 h-9 rounded-full transition-all duration-200 ${
+            isFirstTimestamp || availableTimestamps.length === 0
+              ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+              : 'bg-[#137fec] hover:bg-[#137fec]/80 text-white shadow-lg shadow-[#137fec]/30'
+          }`}
+          title="Giờ trước"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+
         {/* Play/Pause Button */}
         <button
           onClick={handlePlayPause}
-          className="flex items-center justify-center w-9 h-9 bg-[#137fec] hover:bg-[#137fec]/80 text-white rounded-full transition-colors shadow-lg shadow-[#137fec]/30"
+          disabled={availableTimestamps.length === 0}
+          className={`flex items-center justify-center w-9 h-9 rounded-full transition-colors ${
+            availableTimestamps.length === 0
+              ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+              : 'bg-[#137fec] hover:bg-[#137fec]/80 text-white shadow-lg shadow-[#137fec]/30'
+          }`}
           title={playing ? 'Pause' : 'Play'}
         >
           {playing ? (
@@ -159,6 +206,22 @@ export default function TimeControls({
           ) : (
             <span className="text-sm">▶️</span>
           )}
+        </button>
+
+        {/* Next Button */}
+        <button
+          onClick={handleNext}
+          disabled={isLastTimestamp || availableTimestamps.length === 0}
+          className={`flex items-center justify-center w-9 h-9 rounded-full transition-all duration-200 ${
+            isLastTimestamp || availableTimestamps.length === 0
+              ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+              : 'bg-[#137fec] hover:bg-[#137fec]/80 text-white shadow-lg shadow-[#137fec]/30'
+          }`}
+          title="Giờ sau"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
         </button>
 
         {/* Time Slider */}

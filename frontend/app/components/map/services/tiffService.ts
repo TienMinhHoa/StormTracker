@@ -9,59 +9,134 @@ export interface WindTimestamp {
   vFile: string;
 }
 
-// Danh sách các timestamp có sẵn trong thư mục GFS_process
-// Tất cả timestamps có sẵn trong thư mục GFS_process
-export const ALL_AVAILABLE_TIMESTAMPS: WindTimestamp[] = [
-  // 2025-11-20
-  { timestamp: "2025-11-20 15:00", uFile: "/GFS_process/U/2025/11/20/20251120_1500.tif", vFile: "/GFS_process/V/2025/11/20/20251120_1500.tif" },
-  { timestamp: "2025-11-20 16:00", uFile: "/GFS_process/U/2025/11/20/20251120_1600.tif", vFile: "/GFS_process/V/2025/11/20/20251120_1600.tif" },
-  { timestamp: "2025-11-20 17:00", uFile: "/GFS_process/U/2025/11/20/20251120_1700.tif", vFile: "/GFS_process/V/2025/11/20/20251120_1700.tif" },
-  { timestamp: "2025-11-20 18:00", uFile: "/GFS_process/U/2025/11/20/20251120_1800.tif", vFile: "/GFS_process/V/2025/11/20/20251120_1800.tif" },
-  { timestamp: "2025-11-20 19:00", uFile: "/GFS_process/U/2025/11/20/20251120_1900.tif", vFile: "/GFS_process/V/2025/11/20/20251120_1900.tif" },
-  { timestamp: "2025-11-20 20:00", uFile: "/GFS_process/U/2025/11/20/20251120_2000.tif", vFile: "/GFS_process/V/2025/11/20/20251120_2000.tif" },
-  { timestamp: "2025-11-20 21:00", uFile: "/GFS_process/U/2025/11/20/20251120_2100.tif", vFile: "/GFS_process/V/2025/11/20/20251120_2100.tif" },
-  { timestamp: "2025-11-20 22:00", uFile: "/GFS_process/U/2025/11/20/20251120_2200.tif", vFile: "/GFS_process/V/2025/11/20/20251120_2200.tif" },
-  { timestamp: "2025-11-20 23:00", uFile: "/GFS_process/U/2025/11/20/20251120_2300.tif", vFile: "/GFS_process/V/2025/11/20/20251120_2300.tif" },
+// Cache cho danh sách timestamps đã quét
+let cachedTimestamps: WindTimestamp[] = [];
+let lastScanTime: number = 0;
+const CACHE_DURATION = 5 * 60 * 1000; // 5 phút
 
-  // 2025-11-21
-  { timestamp: "2025-11-21 00:00", uFile: "/GFS_process/U/2025/11/21/20251121_000.tif", vFile: "/GFS_process/V/2025/11/21/20251121_000.tif" },
-  { timestamp: "2025-11-21 01:00", uFile: "/GFS_process/U/2025/11/21/20251121_100.tif", vFile: "/GFS_process/V/2025/11/21/20251121_100.tif" },
-  { timestamp: "2025-11-21 02:00", uFile: "/GFS_process/U/2025/11/21/20251121_200.tif", vFile: "/GFS_process/V/2025/11/21/20251121_200.tif" },
-  { timestamp: "2025-11-21 03:00", uFile: "/GFS_process/U/2025/11/21/20251121_300.tif", vFile: "/GFS_process/V/2025/11/21/20251121_300.tif" },
-];
+/**
+ * Get thời gian hiện tại theo GMT+7
+ */
+export function getCurrentTimeGMT7(): Date {
+  // Lấy thời gian UTC và cộng 7 giờ
+  const now = new Date();
+  const utcTime = now.getTime() + (now.getTimezoneOffset() * 60 * 1000);
+  const gmt7Time = new Date(utcTime + (7 * 60 * 60 * 1000));
+  return gmt7Time;
+}
+
+/**
+ * Quét thư mục GFS_process để lấy danh sách file TIFF có sẵn
+ * Sử dụng API endpoint /api/tiff/scan để quét từ server
+ * Sẽ quét 2 ngày: hôm nay và hôm qua (GMT+7)
+ */
+async function scanAvailableTiffFiles(): Promise<WindTimestamp[]> {
+  // Kiểm tra cache
+  const now = Date.now();
+  if (cachedTimestamps.length > 0 && (now - lastScanTime) < CACHE_DURATION) {
+    console.log('📦 Using cached TIFF file list');
+    return cachedTimestamps;
+  }
+
+  console.log('🔍 Scanning GFS_process directory via API (2 days: today + yesterday)...');
+
+  try {
+    // Gọi API để quét thư mục - chỉ quét 2 ngày
+    const response = await fetch('/api/tiff/scan?days=2');
+    
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    if (!data.success) {
+      throw new Error(data.message || 'Failed to scan files');
+    }
+
+    const timestamps = data.timestamps || [];
+    
+    console.log(`✅ Found ${timestamps.length} TIFF files from API`);
+    
+    // Cập nhật cache
+    cachedTimestamps = timestamps;
+    lastScanTime = now;
+    
+    return timestamps;
+  } catch (error) {
+    console.error('❌ Error scanning TIFF files:', error);
+    return [];
+  }
+}
+
+// Danh sách timestamps sẽ được load động
+export let ALL_AVAILABLE_TIMESTAMPS: WindTimestamp[] = [];
+
+/**
+ * Khởi tạo và load danh sách timestamps có sẵn
+ * Hàm này nên được gọi khi component mount hoặc khi cần refresh data
+ */
+export async function initializeTimestamps(): Promise<WindTimestamp[]> {
+  ALL_AVAILABLE_TIMESTAMPS = await scanAvailableTiffFiles();
+  return ALL_AVAILABLE_TIMESTAMPS;
+}
 
 /**
  * Tính toán khoảng thời gian hiển thị trên thanh thời gian
- * - Thời gian cuối cùng: thời gian cuối cùng trong thư mục
- * - Thời gian bắt đầu: trước đó 5 ngày, hoặc thời gian đầu tiên nếu khoảng cách < 5 ngày
+ * Chỉ hiển thị timestamps của 2 ngày: hôm nay và hôm qua (theo GMT+7)
  */
 function calculateDisplayTimeRange(): WindTimestamp[] {
   if (ALL_AVAILABLE_TIMESTAMPS.length === 0) return [];
 
-  const firstTimestamp = ALL_AVAILABLE_TIMESTAMPS[0];
-  const lastTimestamp = ALL_AVAILABLE_TIMESTAMPS[ALL_AVAILABLE_TIMESTAMPS.length - 1];
+  // Lấy thời gian hiện tại GMT+7
+  const nowGMT7 = getCurrentTimeGMT7();
+  
+  // Tính thời điểm bắt đầu ngày hôm qua (00:00:00)
+  const yesterdayStart = new Date(nowGMT7);
+  yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+  yesterdayStart.setHours(0, 0, 0, 0);
+  
+  // Tính thời điểm kết thúc ngày hôm nay (23:59:59)
+  const todayEnd = new Date(nowGMT7);
+  todayEnd.setHours(23, 59, 59, 999);
 
-  // Tính khoảng cách thời gian giữa đầu và cuối (tính bằng giờ)
-  const firstDate = new Date(firstTimestamp.timestamp.replace(' ', 'T'));
-  const lastDate = new Date(lastTimestamp.timestamp.replace(' ', 'T'));
-  const timeDiffHours = (lastDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60);
+  console.log(`📅 Filtering timestamps from ${yesterdayStart.toISOString()} to ${todayEnd.toISOString()}`);
 
-  // Nếu khoảng cách < 5 ngày (120 giờ), hiển thị tất cả
-  if (timeDiffHours < 120) {
-    return ALL_AVAILABLE_TIMESTAMPS;
-  }
-
-  // Nếu khoảng cách >= 5 ngày, chỉ hiển thị từ thời gian cuối cùng trở về 5 ngày
-  const fiveDaysAgo = new Date(lastDate.getTime() - (5 * 24 * 60 * 60 * 1000));
-
-  return ALL_AVAILABLE_TIMESTAMPS.filter(timestamp => {
+  // Lọc chỉ lấy timestamps trong khoảng từ ngày hôm qua đến hôm nay
+  const filtered = ALL_AVAILABLE_TIMESTAMPS.filter(timestamp => {
     const timestampDate = new Date(timestamp.timestamp.replace(' ', 'T'));
-    return timestampDate >= fiveDaysAgo;
+    return timestampDate >= yesterdayStart && timestampDate <= todayEnd;
   });
+
+  console.log(`✅ Filtered ${filtered.length} timestamps (today + yesterday)`);
+
+  return filtered;
 }
 
-// Khoảng thời gian hiển thị trên thanh thời gian (được tính toán tự động)
-export const AVAILABLE_TIMESTAMPS: WindTimestamp[] = calculateDisplayTimeRange();
+/**
+ * Get danh sách timestamps để hiển thị (hôm nay + hôm qua theo GMT+7)
+ */
+export async function getAvailableTimestamps(): Promise<WindTimestamp[]> {
+  if (ALL_AVAILABLE_TIMESTAMPS.length === 0) {
+    await initializeTimestamps();
+  }
+  const timestamps = calculateDisplayTimeRange();
+  AVAILABLE_TIMESTAMPS = timestamps; // Update export variable
+  return timestamps;
+}
+
+// Export biến AVAILABLE_TIMESTAMPS để tương thích với code cũ
+// Sẽ được populate bởi initializeTimestamps() hoặc getAvailableTimestamps()
+export let AVAILABLE_TIMESTAMPS: WindTimestamp[] = [];
+
+/**
+ * Force refresh danh sách timestamps (clear cache)
+ */
+export async function refreshTimestamps(): Promise<WindTimestamp[]> {
+  cachedTimestamps = [];
+  lastScanTime = 0;
+  return await initializeTimestamps();
+}
 
 export interface TIFFWindData {
   u: Float32Array; // U component (eastward wind)
@@ -76,9 +151,21 @@ export interface TIFFWindData {
  * Normalize và clamp bbox values để đảm bảo hợp lệ cho Mapbox
  * Mapbox yêu cầu: longitude [-180, 180], latitude [-90, 90]
  * Web Mercator thực tế: latitude [-85, 85]
+ * 
+ * QUAN TRỌNG: TIFF có AREA_OR_POINT=Area, nghĩa là bbox là pixel CORNERS
+ * Nhưng data values nằm ở pixel CENTERS. Do đó KHÔNG cần điều chỉnh bbox
+ * vì Mapbox sẽ stretch ảnh từ corners, đúng như TIFF định nghĩa.
  */
 function normalizeBbox(bbox: [number, number, number, number]): [number, number, number, number] {
   let [west, south, east, north] = bbox;
+  
+  // Apply latitude offset: shift down 2.5 degrees
+  const LAT_OFFSET = -2.5;
+  south += LAT_OFFSET;
+  north += LAT_OFFSET;
+  
+  console.log(`📐 BBox (original): [${bbox.join(', ')}]`);
+  console.log(`📐 BBox (offset by ${LAT_OFFSET}°): [${west}, ${south}, ${east}, ${north}]`);
   
   // Clamp longitude to [-180, 180]
   west = Math.max(-180, Math.min(180, west));
@@ -87,6 +174,8 @@ function normalizeBbox(bbox: [number, number, number, number]): [number, number,
   // Clamp latitude to [-85, 85] (Web Mercator limit, Mapbox requirement)
   south = Math.max(-85, Math.min(85, south));
   north = Math.max(-85, Math.min(85, north));
+  
+  console.log(`📐 BBox (clamped): [${west}, ${south}, ${east}, ${north}]`);
   
   // Ensure west < east and south < north
   if (west >= east) {
@@ -115,7 +204,14 @@ function normalizeBbox(bbox: [number, number, number, number]): [number, number,
  * Load wind data cho một timestamp cụ thể từ thư mục GFS_process
  */
 export async function loadWindDataForTimestamp(timestamp: string): Promise<TIFFWindData> {
-  const windTimestamp = AVAILABLE_TIMESTAMPS.find(t => t.timestamp === timestamp);
+  // Đảm bảo đã load danh sách timestamps
+  if (ALL_AVAILABLE_TIMESTAMPS.length === 0) {
+    await initializeTimestamps();
+  }
+
+  const availableTimestamps = calculateDisplayTimeRange();
+  const windTimestamp = availableTimestamps.find(t => t.timestamp === timestamp);
+  
   if (!windTimestamp) {
     throw new Error(`Timestamp ${timestamp} not found in available data`);
   }
@@ -124,33 +220,41 @@ export async function loadWindDataForTimestamp(timestamp: string): Promise<TIFFW
 }
 
 /**
- * Get timestamp gần nhất với thời gian hiện tại
+ * Get timestamp gần nhất với thời gian hiện tại (GMT+7)
+ * Tìm file TIFF gần nhất với giờ hiện tại
  */
-export function getCurrentTimestamp(): string {
-  const now = new Date();
-  const currentHour = now.getHours();
+export async function getCurrentTimestamp(): Promise<string> {
+  // Đảm bảo đã load danh sách timestamps
+  if (ALL_AVAILABLE_TIMESTAMPS.length === 0) {
+    await initializeTimestamps();
+  }
 
-  // Tìm timestamp gần nhất
-  const timestamps = AVAILABLE_TIMESTAMPS.map(t => {
-    const [date, time] = t.timestamp.split(' ');
-    const [hours] = time.split(':');
-    return {
-      timestamp: t.timestamp,
-      hour: parseInt(hours)
-    };
-  });
+  const availableTimestamps = calculateDisplayTimeRange();
+  console.log(`🔢 Available timestamps for current time search: ${availableTimestamps.length}`);
+  if (availableTimestamps.length === 0) {
+    throw new Error('No TIFF files available');
+  }
 
-  // Tìm timestamp có giờ gần nhất
-  let closest = timestamps[0];
-  let minDiff = Math.abs(currentHour - closest.hour);
+  // Lấy thời gian hiện tại GMT+7
+  const nowGMT7 = getCurrentTimeGMT7();
+  const currentTime = nowGMT7.getTime();
 
-  for (const ts of timestamps) {
-    const diff = Math.abs(currentHour - ts.hour);
+  // Tìm timestamp gần nhất với thời gian hiện tại
+  let closest = availableTimestamps[0];
+  let minDiff = Math.abs(currentTime - new Date(closest.timestamp.replace(' ', 'T')).getTime());
+
+  for (const ts of availableTimestamps) {
+    const tsTime = new Date(ts.timestamp.replace(' ', 'T')).getTime();
+    const diff = Math.abs(currentTime - tsTime);
+    
     if (diff < minDiff) {
       minDiff = diff;
       closest = ts;
     }
   }
+
+  console.log(`🕐 Current time (GMT+7): ${nowGMT7.toISOString()}`);
+  console.log(`📍 Closest timestamp: ${closest.timestamp}`);
 
   return closest.timestamp;
 }
@@ -194,9 +298,27 @@ async function readTIFFData(url: string): Promise<{
     let bbox: [number, number, number, number];
     try {
       const geoBbox = image.getBoundingBox();
+      const origin = image.getOrigin();
+      const resolution = image.getResolution();
+      
+      console.log(`📊 TIFF Metadata:`);
+      console.log(`   Size: ${width}x${height}`);
+      console.log(`   Origin: [${origin?.join(', ')}]`);
+      console.log(`   Resolution: [${resolution?.join(', ')}]`);
+      console.log(`   BBox (from TIFF): [${geoBbox?.join(', ')}]`);
+      
       if (geoBbox && geoBbox.length === 4) {
-        // bbox format: [minX, minY, maxX, maxY] = [west, south, east, north]
+        // bbox format from geotiff: [minX, minY, maxX, maxY] = [west, south, east, north]
         bbox = normalizeBbox([geoBbox[0], geoBbox[1], geoBbox[2], geoBbox[3]]);
+        
+        // Calculate and log pixel centers for debugging
+        const pixelWidth = (geoBbox[2] - geoBbox[0]) / width;
+        const pixelHeight = Math.abs((geoBbox[3] - geoBbox[1]) / height);
+        const firstPixelCenterX = geoBbox[0] + pixelWidth / 2;
+        const firstPixelCenterY = geoBbox[3] - pixelHeight / 2; // geoBbox[3] is maxY (north)
+        
+        console.log(`   Pixel size: ${pixelWidth}° x ${pixelHeight}°`);
+        console.log(`   First pixel center: [${firstPixelCenterX}, ${firstPixelCenterY}]`);
       } else {
         // Fallback: assume global coverage
         bbox = [-180, -85, 180, 85];
@@ -382,6 +504,7 @@ export async function loadWindDataFromTIFF(
     return {
       u: new Float32Array(0),
       v: new Float32Array(0),
+      speed: new Float32Array(0),
       width: 0,
       height: 0,
       bbox: [-180, -85, 180, 85]

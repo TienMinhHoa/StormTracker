@@ -11,7 +11,7 @@ import WindParticlesLayer from './WindParticlesLayer';
 import StormTrackLayer from './StormTrackLayer';
 import MapInfo from './MapInfo';
 import { RescueRequest } from '../rescue';
-import { AVAILABLE_TIMESTAMPS } from './services/tiffService';
+import { AVAILABLE_TIMESTAMPS, getCurrentTimestamp, initializeTimestamps } from './services/tiffService';
 import { getStormTracks, type Storm, type StormTrack } from '../../services/stormApi';
 import { getSafeImageUrl, DEFAULT_NEWS_IMAGE } from '../../utils/imageUtils';
 import type { DamageDetailRecord } from '../../services/damageDetailsApi';
@@ -53,7 +53,7 @@ type MapProps = {
     luongmuatd_db: number;
   }>;
   onWarningClick?: (warning: any) => void;
-  onRescueRequestUpdate?: (requestId: number, status: 'completed' | 'safe_reported') => Promise<void>;
+  onRescueRequestUpdate?: (requestId: number, status: 'pending' | 'in-progress' | 'completed') => Promise<void>;
 };
 
 export default function Map({ onMapReady, rescueRequests = [], newsItems = [], activeTab = 'forecast', onNewsClick, selectedStorm, showNewsMarkers = true, showRescueMarkers = true, showWarningMarkers = true, showDamageMarkers = true, damageDetailsItems = [], rescueNewsItems = [], showRescueNewsMarkers = true, warningItems = [], onWarningClick, onRescueRequestUpdate }: MapProps) {
@@ -85,11 +85,27 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
   const [stormTracks, setStormTracks] = useState<StormTrack[]>([]);
   const [loadingTracks, setLoadingTracks] = useState(false);
 
-  // Set default timestamp on mount
+  // Set default timestamp to current time (GMT+7) on mount
   useEffect(() => {
-    if (!windTimestamp && AVAILABLE_TIMESTAMPS.length > 0) {
-      setWindTimestamp(AVAILABLE_TIMESTAMPS[0].timestamp);
-    }
+    const initializeCurrentTimestamp = async () => {
+      if (!windTimestamp) {
+        try {
+          // Khởi tạo timestamps và lấy timestamp hiện tại (gần nhất với giờ hiện tại GMT+7)
+          await initializeTimestamps();
+          const currentTimestamp = await getCurrentTimestamp();
+          setWindTimestamp(currentTimestamp);
+          console.log(`🕐 Initialized with current timestamp: ${currentTimestamp}`);
+        } catch (error) {
+          console.error('Failed to initialize current timestamp:', error);
+          // Fallback: sử dụng timestamp đầu tiên nếu có lỗi
+          if (AVAILABLE_TIMESTAMPS.length > 0) {
+            setWindTimestamp(AVAILABLE_TIMESTAMPS[0].timestamp);
+          }
+        }
+      }
+    };
+    
+    initializeCurrentTimestamp();
   }, []);
 
   // Load storm tracks when selectedStorm changes or map becomes ready
@@ -210,8 +226,8 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
     newsMarkers.current.forEach((m) => m.remove());
     newsMarkers.current = [];
 
-    // Only create markers if news tab is active and showNewsMarkers is enabled
-    if (activeTab !== 'news' || !showNewsMarkers) return;
+    // Only create markers if showNewsMarkers is enabled
+    if (!showNewsMarkers) return;
 
     // Category color mapping
     const categoryColors: Record<string, string> = {
@@ -313,28 +329,23 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
     rescueRequests.forEach((rescue) => {
       const [lng, lat] = rescue.coordinates;
 
-      // Get marker color: green if completed or safe_reported, otherwise based on priority
-      const getMarkerColor = (status: string, priority: number): string => {
-        // If status is completed or safe_reported, always green
-        if (status === 'completed' || status === 'safe_reported') {
-          return '#22c55e'; // Green
+      // Map urgency to color
+      const getUrgencyColor = (urgency: 'critical' | 'high' | 'medium' | 'low'): string => {
+        switch (urgency) {
+          case 'critical': return '#ef4444'; // Red
+          case 'high': return '#f97316'; // Orange
+          case 'medium': return '#eab308'; // Yellow
+          case 'low': return '#22c55e'; // Green
+          default: return '#eab308';
         }
-        // Otherwise, use priority-based color
-        if (priority <= 1) return '#ef4444'; // Red - critical
-        if (priority <= 2) return '#f97316'; // Orange - high
-        if (priority <= 3) return '#eab308'; // Yellow - medium
-        return '#22c55e'; // Green - low
       };
 
-      const markerColor = getMarkerColor(rescue.status, rescue.priority || 3);
-      // For popup, use priority-based color for urgency display
-      const getUrgencyColor = (priority: number): string => {
-        if (priority <= 1) return '#ef4444';
-        if (priority <= 2) return '#f97316';
-        if (priority <= 3) return '#eab308';
-        return '#22c55e';
-      };
-      const urgencyColor = getUrgencyColor(rescue.priority || 3);
+      // Get marker color: green if completed, otherwise based on urgency
+      const markerColor = rescue.status === 'completed' 
+        ? '#22c55e' 
+        : getUrgencyColor(rescue.urgency);
+      
+      const urgencyColor = getUrgencyColor(rescue.urgency);
 
       // Create custom marker element with number of people
       const el = document.createElement('div');
@@ -354,16 +365,15 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
       el.style.fontSize = '14px';
       el.innerHTML = rescue.numberOfPeople.toString();
 
-      // Add pulsing animation for critical/high urgency (only if not completed/safe)
+      // Add pulsing animation for critical/high urgency (only if not completed)
       if ((rescue.urgency === 'critical' || rescue.urgency === 'high') && 
-          rescue.status !== 'completed' && rescue.status !== 'safe_reported') {
+          rescue.status !== 'completed') {
         el.style.animation = 'pulse 2s infinite';
       }
 
       // Create popup with rescue info and action buttons
       const statusLabel = rescue.status === 'pending' ? 'Đang tiếp nhận' :
-                         rescue.status === 'completed' ? 'Đã hỗ trợ' :
-                         rescue.status === 'safe_reported' ? 'Báo an toàn' : 'Đang cứu hộ';
+                         rescue.status === 'completed' ? 'Đã hỗ trợ' : 'Đang cứu hộ';
       
       const urgencyLabel = rescue.urgency === 'critical' ? 'Cực kỳ khẩn cấp' :
                           rescue.urgency === 'high' ? 'Khẩn cấp' :
@@ -394,13 +404,13 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
         <p style="margin: 4px 0; font-size: 13px;"><strong>Số người:</strong> ${rescue.numberOfPeople}</p>
         <p style="margin: 4px 0; font-size: 13px;"><strong>Địa chỉ:</strong> ${rescue.address}</p>
         <p style="margin: 4px 0; font-size: 13px;"><strong>Trạng thái:</strong> ${statusLabel}</p>
-        <p style="margin: 4px 0; font-size: 13px;"><strong>Mức độ ưu tiên:</strong> ${rescue.priority || 'N/A'}/5</p>
+        <p style="margin: 4px 0; font-size: 13px;"><strong>Mức độ khẩn cấp:</strong> ${urgencyLabel}</p>
         <p style="margin: 6px 0 4px 0; font-size: 12px; color: #666;">${rescue.description}</p>
         <p style="margin: 4px 0 0 0; font-size: 11px; color: #999;">${rescue.timestamp}</p>
-        ${rescue.status !== 'completed' && rescue.status !== 'safe_reported' ? `
+        ${rescue.status !== 'completed' ? `
           <div style="margin-top: 8px; display: flex; gap: 4px;">
-            <button id="btn-safe-${rescue.id}" style="flex: 1; padding: 6px; background: #14b8a6; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 500;">
-              ✓ Báo an toàn
+            <button id="btn-inprogress-${rescue.id}" style="flex: 1; padding: 6px; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 500;">
+              → Đang xử lý
             </button>
             <button id="btn-completed-${rescue.id}" style="flex: 1; padding: 6px; background: #22c55e; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 500;">
               ✓ Đã hỗ trợ
@@ -412,22 +422,22 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
       popup.setDOMContent(popupContent);
 
       // Add event listeners for buttons after popup is set
-      if (rescue.status !== 'completed' && rescue.status !== 'safe_reported' && onRescueRequestUpdate) {
+      if (rescue.status !== 'completed' && onRescueRequestUpdate) {
         // Use a closure to capture the rescue id and update function
         const rescueId = rescue.id;
         const updateHandler = onRescueRequestUpdate;
         
         // Wait for popup to be added to DOM
         setTimeout(() => {
-          const safeBtn = popupContent.querySelector(`#btn-safe-${rescueId}`) as HTMLButtonElement;
+          const inProgressBtn = popupContent.querySelector(`#btn-inprogress-${rescueId}`) as HTMLButtonElement;
           const completedBtn = popupContent.querySelector(`#btn-completed-${rescueId}`) as HTMLButtonElement;
           
-          if (safeBtn) {
-            safeBtn.addEventListener('click', async (e) => {
+          if (inProgressBtn) {
+            inProgressBtn.addEventListener('click', async (e) => {
               e.preventDefault();
               e.stopPropagation();
               try {
-                await updateHandler(rescueId, 'safe_reported');
+                await updateHandler(rescueId, 'in-progress');
                 popup.remove();
               } catch (error) {
                 console.error('Failed to update status:', error);
@@ -473,12 +483,15 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
 
     // Auto-zoom to the rescue request with most people when entering rescue tab
     if (rescueRequests.length > 0 && map.current && mapReady) {
+      // Urgency priority mapping
+      const urgencyPriority = { 'critical': 1, 'high': 2, 'medium': 3, 'low': 4 };
+      
       const highestPriorityRequest = rescueRequests.reduce((max, request) => {
         const maxPeople = max.numberOfPeople || 0;
         const currentPeople = request.numberOfPeople || 0;
-        // Prioritize by number of people, then by priority (lower priority number = higher urgency)
+        // Prioritize by number of people, then by urgency (lower number = higher urgency)
         if (currentPeople > maxPeople) return request;
-        if (currentPeople === maxPeople && (request.priority || 5) < (max.priority || 5)) return request;
+        if (currentPeople === maxPeople && urgencyPriority[request.urgency] < urgencyPriority[max.urgency]) return request;
         return max;
       });
 
@@ -513,8 +526,8 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
     console.log(`⚠️ Adding ${warningItems.length} warning markers to map`);
 
     warningItems.forEach((warning) => {
-      const { id, commune_id, commune_id_2cap, lon, lat, commune_name, district_name, provinceName, nguycosatlo, nguycoluquet, luongmuatd_db } = warning;
-      const uniqueKey = `${id}-${commune_id}-${commune_id_2cap}`;
+      const { id, lon, lat, commune_name, district_name, provinceName, nguycosatlo, nguycoluquet, luongmuatd_db } = warning;
+      const uniqueKey = `${id}-${commune_name}-${district_name}`;
 
       // Determine max risk level
       const maxRisk = nguycosatlo === 'Rất cao' || nguycoluquet === 'Rất cao' ? 'Rất cao' :

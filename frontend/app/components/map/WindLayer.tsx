@@ -3,7 +3,15 @@
 import { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import { fetchGFSWindData, WindData } from './services/gfsService';
-import { loadWindDataForTimestamp, AVAILABLE_TIMESTAMPS, WindTimestamp, TIFFWindData } from './services/tiffService';
+import { 
+  loadWindDataForTimestamp, 
+  AVAILABLE_TIMESTAMPS, 
+  WindTimestamp, 
+  TIFFWindData,
+  initializeTimestamps,
+  getAvailableTimestamps,
+  getCurrentTimestamp
+} from './services/tiffService';
 import { renderWindyStyle } from './utils/windyColorScale';
 import { WebGLWindRenderer } from './webgl';
 
@@ -121,12 +129,28 @@ export default function WindLayer({
       onLoadingChange?.(true);
 
       try {
-        // Use provided timestamp or get current one
-        const targetTimestamp = timestamp || AVAILABLE_TIMESTAMPS[0]?.timestamp;
-        if (!targetTimestamp) {
-          throw new Error('No timestamp available');
+        // Khởi tạo timestamps nếu chưa có
+        console.log('🔍 Initializing timestamps...');
+        await initializeTimestamps();
+        
+        // Lấy danh sách timestamps để hiển thị
+        const availableTimestamps = await getAvailableTimestamps();
+        
+        if (availableTimestamps.length === 0) {
+          throw new Error('No TIFF files available in GFS_process directory');
         }
+        
+        console.log(`📋 Found ${availableTimestamps.length} available timestamps`);
 
+        // Use provided timestamp or get current one (gần nhất với giờ hiện tại GMT+7)
+        let targetTimestamp: string;
+        if (timestamp) {
+          targetTimestamp = timestamp;
+        } else {
+          // Lấy timestamp hiện tại (gần nhất với giờ GMT+7)
+          targetTimestamp = await getCurrentTimestamp();
+        }
+        
         console.log(`🌪️ Loading wind data for timestamp: ${targetTimestamp}`);
 
         // Try to load from GFS_process first, fallback to GFS service
@@ -157,9 +181,9 @@ export default function WindLayer({
             setWindData_t1(tiffData);
             
             // Try to preload next timestamp for smooth transitions
-            const currentIndex = AVAILABLE_TIMESTAMPS.findIndex(t => t.timestamp === targetTimestamp);
-            if (currentIndex >= 0 && currentIndex < AVAILABLE_TIMESTAMPS.length - 1) {
-              const nextTimestamp = AVAILABLE_TIMESTAMPS[currentIndex + 1].timestamp;
+            const currentIndex = availableTimestamps.findIndex(t => t.timestamp === targetTimestamp);
+            if (currentIndex >= 0 && currentIndex < availableTimestamps.length - 1) {
+              const nextTimestamp = availableTimestamps[currentIndex + 1].timestamp;
               try {
                 const nextTiffData = await loadWindDataForTimestamp(nextTimestamp);
                 webglRendererRef.current.loadWindData_t2(nextTiffData);
@@ -491,7 +515,7 @@ export default function WindLayer({
     <canvas
       ref={canvasRef}
       width={1440} // Full resolution GFS 0.25°
-      height={681} // 170° / 0.25° + 1 (từ -85° đến 85°)
+      height={680} // 170° / 0.25° + 1 (từ -85° đến 85°)
       style={{ display: 'none' }}
     />
   );
