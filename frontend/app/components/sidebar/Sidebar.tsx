@@ -61,7 +61,7 @@ export default function Sidebar({
   onShowRescueForm,
   onWarningTimeChange
 }: SidebarProps) {
-  const [activeTab, setActiveTab] = useState<'forecast' | 'rescue' | 'damage' | 'chatbot' | 'settings'>('forecast');
+  const [activeTab, setActiveTab] = useState<'forecast' | 'rescue' | 'damage' | 'chatbot' | 'settings'>('chatbot');
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [storms, setStorms] = useState<Storm[]>([]);
@@ -69,7 +69,7 @@ export default function Sidebar({
   const [selectedStormLocal, setSelectedStormLocal] = useState<Storm | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(320); // Default width in pixels
   const [isResizing, setIsResizing] = useState(false);
-  const [stormFilter, setStormFilter] = useState<'history' | 'live'>('history');
+  const [stormFilter, setStormFilter] = useState<'history' | 'live'>('live');
   const [filteredStorms, setFilteredStorms] = useState<Storm[]>([]);
   const [isMounted, setIsMounted] = useState(false);
   const [isMobile, setIsMobile] = useState(false);

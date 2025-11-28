@@ -208,6 +208,23 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
       // Tùy chỉnh màu sắc để giống Windy
       // newMap.setPaintProperty('background', 'background-color', '#0a1929');
 
+      // Ẩn các label của khu vực biển (water labels)
+      const style = newMap.getStyle();
+      if (style && style.layers) {
+        style.layers.forEach((layer: any) => {
+          // Ẩn các layer có chứa "water" và "label" trong id
+          if (layer.id.includes('water') && layer.id.includes('label')) {
+            newMap.setLayoutProperty(layer.id, 'visibility', 'none');
+          }
+          // Ẩn cụ thể các label của marine/ocean/sea
+          if (layer.id.includes('marine-label') || 
+              layer.id.includes('ocean-label') || 
+              layer.id.includes('sea-label')) {
+            newMap.setLayoutProperty(layer.id, 'visibility', 'none');
+          }
+        });
+      }
+
       // Call onMapReady callback with flyToLocation function
       onMapReady?.(flyToLocation);
 

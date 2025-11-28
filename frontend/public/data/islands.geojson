@@ -5,7 +5,7 @@
       "type": "Feature",
       "properties": {
         "id": "paracel",
-        "name": "Hoàng Sa",
+        "name": "Hoàng Sa (Việt Nam)",
         "type": "island_group"
       },
       "geometry": {
@@ -17,7 +17,7 @@
       "type": "Feature",
       "properties": {
         "id": "spratly",
-        "name": "Trường Sa",
+        "name": "Trường Sa (Việt Nam)",
         "type": "island_group"
       },
       "geometry": {

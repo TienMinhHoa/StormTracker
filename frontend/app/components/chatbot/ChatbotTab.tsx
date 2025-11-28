@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Message } from './chatbotTypes';
 
 interface ChatbotTabProps {
@@ -273,13 +275,105 @@ export default function ChatbotTab({ stormId }: ChatbotTabProps) {
               className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}
             >
               <div
-                className={`max-w-[80%] rounded-lg px-3 py-2 ${
+                className={`max-w-[80%] rounded-lg px-4 py-3 ${
                   message.isUser
                     ? 'bg-gray-700 text-white'
                     : 'bg-[#137fec] text-white'
                 }`}
               >
-                <p className="text-sm leading-normal">{message.text}</p>
+                {message.isUser ? (
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.text}</p>
+                ) : (
+                  <div className="text-sm markdown-content">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        // Paragraphs
+                        p: ({ node, ...props }) => (
+                          <p className="mb-2 last:mb-0 leading-relaxed" {...props} />
+                        ),
+                        // Headings
+                        h1: ({ node, ...props }) => (
+                          <h1 className="text-lg font-bold mb-2 mt-3 first:mt-0" {...props} />
+                        ),
+                        h2: ({ node, ...props }) => (
+                          <h2 className="text-base font-bold mb-2 mt-3 first:mt-0" {...props} />
+                        ),
+                        h3: ({ node, ...props }) => (
+                          <h3 className="text-sm font-bold mb-2 mt-2 first:mt-0" {...props} />
+                        ),
+                        // Lists
+                        ul: ({ node, ...props }) => (
+                          <ul className="list-disc list-inside mb-2 space-y-1" {...props} />
+                        ),
+                        ol: ({ node, ...props }) => (
+                          <ol className="list-decimal list-inside mb-2 space-y-1" {...props} />
+                        ),
+                        li: ({ node, ...props }) => (
+                          <li className="leading-relaxed" {...props} />
+                        ),
+                        // Code
+                        code: ({ node, inline, ...props }: any) =>
+                          inline ? (
+                            <code
+                              className="bg-white/20 px-1.5 py-0.5 rounded text-xs font-mono"
+                              {...props}
+                            />
+                          ) : (
+                            <code
+                              className="block bg-white/20 p-2 rounded text-xs font-mono overflow-x-auto my-2"
+                              {...props}
+                            />
+                          ),
+                        pre: ({ node, ...props }) => (
+                          <pre className="bg-white/20 p-2 rounded overflow-x-auto my-2" {...props} />
+                        ),
+                        // Links
+                        a: ({ node, ...props }) => (
+                          <a
+                            className="underline hover:text-white/80 transition-colors"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            {...props}
+                          />
+                        ),
+                        // Blockquotes
+                        blockquote: ({ node, ...props }) => (
+                          <blockquote
+                            className="border-l-2 border-white/40 pl-3 my-2 italic"
+                            {...props}
+                          />
+                        ),
+                        // Tables
+                        table: ({ node, ...props }) => (
+                          <div className="overflow-x-auto my-2">
+                            <table className="min-w-full border-collapse" {...props} />
+                          </div>
+                        ),
+                        th: ({ node, ...props }) => (
+                          <th className="border border-white/30 px-2 py-1 bg-white/10" {...props} />
+                        ),
+                        td: ({ node, ...props }) => (
+                          <td className="border border-white/30 px-2 py-1" {...props} />
+                        ),
+                        // Strong/Bold
+                        strong: ({ node, ...props }) => (
+                          <strong className="font-bold" {...props} />
+                        ),
+                        // Emphasis/Italic
+                        em: ({ node, ...props }) => (
+                          <em className="italic" {...props} />
+                        ),
+                        // Horizontal rule
+                        hr: ({ node, ...props }) => (
+                          <hr className="my-3 border-white/30" {...props} />
+                        ),
+                      }}
+                    >
+                      {message.text}
+                    </ReactMarkdown>
+                  </div>
+                )}
               </div>
             </div>
           ))}

@@ -105,7 +105,75 @@ QUY TẮC:
 - Ưu tiên an toàn của người dân lên hàng đầu
 - Trả lời ngắn gọn, dễ hiểu, rõ ràng
 - Nếu không chắc chắn, hãy thừa nhận và đề nghị người dùng liên hệ đường dây nóng khẩn cấp
-- Khi có nhiều tool có thể dùng, hãy chọn tool phù hợp nhất với câu hỏi"""
+- Khi có nhiều tool có thể dùng, hãy chọn tool phù hợp nhất với câu hỏi
+
+FORMAT MARKDOWN - QUAN TRỌNG:
+BẠN PHẢI TRẢ LỜI BẰNG MARKDOWN FORMAT ĐỂ FRONTEND DỄ HIỂN THỊ:
+
+1. **Tiêu đề**: Dùng # ## ### cho các cấp tiêu đề
+   Ví dụ: ## Cách chuẩn bị đón bão
+
+2. **Danh sách**: Dùng - hoặc số thứ tự 1. 2. 3.
+   Ví dụ:
+   - Mục 1
+   - Mục 2
+   
+   Hoặc:
+   1. Bước đầu tiên
+   2. Bước thứ hai
+
+3. **In đậm**: Dùng **text** hoặc __text__
+   Ví dụ: **Quan trọng**: Phải sơ tán ngay
+
+4. **In nghiêng**: Dùng *text* hoặc _text_
+   Ví dụ: *Lưu ý*: Cần theo dõi thường xuyên
+
+5. **Code hoặc highlight**: Dùng `text`
+   Ví dụ: Gọi số `115` để cứu hộ
+
+6. **Đường kẻ ngang**: Dùng --- hoặc ___
+
+7. **Link**: Dùng [text](url)
+
+8. **Nhấn mạnh khẩn cấp**: Dùng > cho blockquote
+   Ví dụ:
+   > ⚠️ **CẢNH BÁO KHẨN CẤP**: Cần sơ tán ngay lập tức!
+
+9. **Bảng** (nếu cần):
+   | Cột 1 | Cột 2 |
+   |-------|-------|
+   | Dữ liệu 1 | Dữ liệu 2 |
+
+10. **Xuống dòng**: Dùng 2 spaces hoặc <br> ở cuối dòng, hoặc để 1 dòng trống
+
+VÍ DỤ TRẢ LỜI ĐÚNG FORMAT:
+
+## Cách chuẩn bị đón bão 🌪️
+
+### 1. Trước khi bão đổ bộ
+
+**Cần làm ngay:**
+- Theo dõi tin tức về bão thường xuyên
+- Chuẩn bị đồ dùng thiết yếu:
+  - Nước uống (đủ 3-5 ngày)
+  - Thực phẩm khô, đồ hộp
+  - Thuốc men, vật dụng y tế
+  - Đèn pin, pin dự phòng
+  - Radio để nghe tin
+
+### 2. Gia cố nhà cửa
+
+> ⚠️ **Lưu ý**: Phải hoàn thành việc gia cố trước 24 giờ khi bão đổ bộ!
+
+1. Kiểm tra mái nhà, cửa sổ
+2. Dùng ván gỗ che cửa sổ
+3. Thu gom đồ đạc ngoài sân vào trong
+
+---
+
+**Đường dây nóng khẩn cấp**: `115` (Cứu hộ cứu nạn)
+
+HÃY LUÔN FORMAT TRẢ LỜI CỦA BẠN THEO CHUẨN MARKDOWN NHƯ VÍ DỤ TRÊN!"""
         
         # Prepare messages with system context
         all_messages = [HumanMessage(content=system_message)] + list(messages)
