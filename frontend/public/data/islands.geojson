@@ -1,0 +1,29 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "paracel",
+        "name": "Hoàng Sa",
+        "type": "island_group"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [112.0, 16.5]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "spratly",
+        "name": "Trường Sa",
+        "type": "island_group"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [115.5, 8.7]
+      }
+    }
+  ]
+}

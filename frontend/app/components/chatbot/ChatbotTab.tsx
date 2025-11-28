@@ -147,9 +147,9 @@ export default function ChatbotTab({ stormId }: ChatbotTabProps) {
 
     // Send message via WebSocket
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      // If live mode (NOWLIVE1234 or any NOW*), use NOW12345 for chatbot
+      // If live mode (NOWLIVE1234 or any NOW*), use NOLIVE1234Connected to Storm Tracker AI assistant. Send your message! for chatbot
       const stormIdToSend = stormId === 'NOWLIVE1234' || (stormId && stormId.startsWith('NOW')) 
-        ? 'NOW12345' 
+        ? 'NOWLIVE1234' 
         : (stormId || 'STORM001');
       wsRef.current.send(
         JSON.stringify({

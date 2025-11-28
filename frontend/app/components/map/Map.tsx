@@ -9,6 +9,7 @@ import WindLegend from './WindLegend';
 import WindLayer from './WindLayer';
 import WindParticlesLayer from './WindParticlesLayer';
 import StormTrackLayer from './StormTrackLayer';
+import IslandsLayer from './IslandsLayer';
 import MapInfo from './MapInfo';
 import { RescueRequest } from '../rescue';
 import { AVAILABLE_TIMESTAMPS, getCurrentTimestamp, initializeTimestamps, getTimestampsForStorm } from './services/tiffService';
@@ -179,7 +180,6 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
       maxZoom: 12,
       // Không giới hạn khu vực - cho phép xem toàn cầu
       // maxBounds: undefined,
-      // Sử dụng projection 2D như Windy.com
       projection: 'mercator' as any,
       // Tắt các tính năng 3D
       pitch: 0,
@@ -202,6 +202,8 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
       });
     };
 
+
+  
     newMap.on('load', () => {
       // Tùy chỉnh màu sắc để giống Windy
       // newMap.setPaintProperty('background', 'background-color', '#0a1929');
@@ -914,6 +916,14 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
           map={map.current}
           enabled={true}
           tracks={stormTracks}
+        />
+      )}
+
+      {/* Islands layer: Hoàng Sa & Trường Sa */}
+      {mapReady && (
+        <IslandsLayer
+          map={map.current}
+          enabled={true}
         />
       )}
 
