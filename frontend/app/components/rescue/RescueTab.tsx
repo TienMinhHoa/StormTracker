@@ -43,7 +43,7 @@ const convertApiToRescueRequest = (apiRequest: RescueRequestResponse): RescueReq
       coordinates: [apiRequest.lon, apiRequest.lat],
       address: apiRequest.address,
       category,
-      urgency: priorityToUrgency(apiRequest.priority, apiRequest.status),
+      urgency: priorityToUrgency(apiRequest.priority),
       numberOfPeople,
       description: apiRequest.note || 'Không có mô tả',
       status: apiRequest.status as 'pending' | 'in-progress' | 'completed' | 'safe_reported',
@@ -111,6 +111,19 @@ export default function RescueTab({ onRescueClick, onRescueNewsClick, stormId, s
   const [rescueRequests, setRescueRequests] = useState<RescueRequest[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Auto-toggle markers based on active section
+  useEffect(() => {
+    if (activeSection === 'requests') {
+      // Show rescue request markers, hide rescue news markers
+      onShowRescueMarkersChange?.(true);
+      onShowRescueNewsMarkersChange?.(false);
+    } else if (activeSection === 'news') {
+      // Show rescue news markers, hide rescue request markers
+      onShowRescueMarkersChange?.(false);
+      onShowRescueNewsMarkersChange?.(true);
+    }
+  }, [activeSection, onShowRescueMarkersChange, onShowRescueNewsMarkersChange]);
 
   // Fetch rescue requests from API
   useEffect(() => {
@@ -234,6 +247,37 @@ export default function RescueTab({ onRescueClick, onRescueNewsClick, stormId, s
             }`}
           >
             📰 Tình trạng cứu hộ ({rescueNews.length})
+          </button>
+        </div>
+
+        {/* Map Markers Toggle */}
+        <div className="flex items-center justify-between bg-[#1c2127] rounded-lg p-3 border border-gray-700">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-300">
+              {activeSection === 'requests' ? '📍 Hiện markers cầu cứu' : '📍 Hiện markers tin tức'}
+            </span>
+          </div>
+          <button
+            onClick={() => {
+              if (activeSection === 'requests') {
+                onShowRescueMarkersChange?.(!showRescueMarkers);
+              } else {
+                onShowRescueNewsMarkersChange?.(!showRescueNewsMarkers);
+              }
+            }}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              (activeSection === 'requests' ? showRescueMarkers : showRescueNewsMarkers)
+                ? 'bg-red-600'
+                : 'bg-gray-600'
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                (activeSection === 'requests' ? showRescueMarkers : showRescueNewsMarkers)
+                  ? 'translate-x-6'
+                  : 'translate-x-1'
+              }`}
+            />
           </button>
         </div>
 
@@ -395,7 +439,7 @@ export default function RescueTab({ onRescueClick, onRescueNewsClick, stormId, s
                       >
                         <div className="flex justify-between items-start mb-2">
                           <div className="flex items-center gap-2">
-                            <span className="text-lg">{categoryIcons[request.category]}</span>
+                            <span className="text-lg">{categoryIcons[request.category as keyof typeof categoryIcons] || '❓'}</span>
                             <h3 className={`font-bold ${colors.text} text-sm`}>
                               {request.name}
                             </h3>

@@ -35,6 +35,7 @@ export default function Home() {
   const [rescueNewsItems, setRescueNewsItems] = useState<News[]>([]);
   const [loadingRescueNews, setLoadingRescueNews] = useState(false);
   const [showRescueNewsMarkers, setShowRescueNewsMarkers] = useState(true); // Default to true
+  const [stormFilter, setStormFilter] = useState<'history' | 'live'>('history');
 
   // Request location permission on first visit
   useEffect(() => {
@@ -342,6 +343,7 @@ export default function Home() {
         onWarningClick={handleWarningClick}
         onTabChange={handleTabChange}
         onStormChange={handleStormChange}
+        onStormFilterChange={setStormFilter}
         selectedNewsId={selectedNewsId}
         selectedStorm={selectedStorm}
         selectedWarning={selectedWarning}
@@ -361,6 +363,7 @@ export default function Home() {
       <div className="absolute inset-0 md:left-0">
         <Map
           onMapReady={handleMapReady}
+          stormFilter={stormFilter}
           rescueRequests={rescueRequests.map(r => ({
             id: r.request_id,
             name: r.name,

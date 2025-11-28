@@ -11,7 +11,7 @@ import WindParticlesLayer from './WindParticlesLayer';
 import StormTrackLayer from './StormTrackLayer';
 import MapInfo from './MapInfo';
 import { RescueRequest } from '../rescue';
-import { AVAILABLE_TIMESTAMPS, getCurrentTimestamp, initializeTimestamps } from './services/tiffService';
+import { AVAILABLE_TIMESTAMPS, getCurrentTimestamp, initializeTimestamps, getTimestampsForStorm } from './services/tiffService';
 import { getStormTracks, type Storm, type StormTrack } from '../../services/stormApi';
 import { getSafeImageUrl, DEFAULT_NEWS_IMAGE } from '../../utils/imageUtils';
 import type { DamageDetailRecord } from '../../services/damageDetailsApi';
@@ -25,6 +25,7 @@ type MapProps = {
   activeTab?: 'forecast' | 'rescue' | 'damage' | 'chatbot';
   onNewsClick?: (news: any) => void;
   selectedStorm?: Storm | null;
+  stormFilter?: 'history' | 'live';
   showNewsMarkers?: boolean;
   showRescueMarkers?: boolean;
   showWarningMarkers?: boolean;
@@ -56,7 +57,7 @@ type MapProps = {
   onRescueRequestUpdate?: (requestId: number, status: 'pending' | 'in-progress' | 'completed') => Promise<void>;
 };
 
-export default function Map({ onMapReady, rescueRequests = [], newsItems = [], activeTab = 'forecast', onNewsClick, selectedStorm, showNewsMarkers = true, showRescueMarkers = true, showWarningMarkers = true, showDamageMarkers = true, damageDetailsItems = [], rescueNewsItems = [], showRescueNewsMarkers = true, warningItems = [], onWarningClick, onRescueRequestUpdate }: MapProps) {
+export default function Map({ onMapReady, rescueRequests = [], newsItems = [], activeTab = 'forecast', onNewsClick, selectedStorm, stormFilter = 'history', showNewsMarkers = true, showRescueMarkers = true, showWarningMarkers = true, showDamageMarkers = true, damageDetailsItems = [], rescueNewsItems = [], showRescueNewsMarkers = true, warningItems = [], onWarningClick, onRescueRequestUpdate }: MapProps) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const marker = useRef<mapboxgl.Marker | null>(null);
@@ -71,8 +72,9 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
     zoom: 6,
   });
 
-  // Wind layer state - always enabled
-  const [windOpacity, setWindOpacity] = useState(1.0);
+  // Wind layer state
+  const [windEnabled, setWindEnabled] = useState(true); // Toggle to show/hide wind layer
+  const windOpacity = 0.90; // Fixed opacity at 1.0
   const [windTimestamp, setWindTimestamp] = useState<string>('');
   const [windLoading, setWindLoading] = useState(false);
   const [windData, setWindData] = useState<any>(null);
@@ -85,28 +87,49 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
   const [stormTracks, setStormTracks] = useState<StormTrack[]>([]);
   const [loadingTracks, setLoadingTracks] = useState(false);
 
-  // Set default timestamp to current time (GMT+7) on mount
+  // Load timestamps based on selected storm
   useEffect(() => {
-    const initializeCurrentTimestamp = async () => {
-      if (!windTimestamp) {
-        try {
-          // Khởi tạo timestamps và lấy timestamp hiện tại (gần nhất với giờ hiện tại GMT+7)
+    const loadTimestampsForStorm = async () => {
+      try {
+        if (selectedStorm?.start_date) {
+          console.log(`🌀 Loading timestamps for storm: ${selectedStorm.name}`);
+          console.log(`   Start: ${selectedStorm.start_date}`);
+          console.log(`   End: ${selectedStorm.end_date || 'ongoing'}`);
+          
+          // Load timestamps trong khoảng thời gian của bão
+          const stormTimestamps = await getTimestampsForStorm(
+            selectedStorm.start_date,
+            selectedStorm.end_date || null
+          );
+          
+          if (stormTimestamps.length > 0) {
+            // Set timestamp đầu tiên của bão
+            setWindTimestamp(stormTimestamps[0].timestamp);
+            console.log(`✅ Loaded ${stormTimestamps.length} timestamps for storm`);
+            console.log(`   First timestamp: ${stormTimestamps[0].timestamp}`);
+          } else {
+            console.warn('⚠️ No wind data available for this storm period');
+            setWindTimestamp('');
+            setWindData(null);
+          }
+        } else {
+          // Không có storm được chọn, load timestamps hiện tại
           await initializeTimestamps();
           const currentTimestamp = await getCurrentTimestamp();
           setWindTimestamp(currentTimestamp);
-          console.log(`🕐 Initialized with current timestamp: ${currentTimestamp}`);
-        } catch (error) {
-          console.error('Failed to initialize current timestamp:', error);
-          // Fallback: sử dụng timestamp đầu tiên nếu có lỗi
-          if (AVAILABLE_TIMESTAMPS.length > 0) {
-            setWindTimestamp(AVAILABLE_TIMESTAMPS[0].timestamp);
-          }
+          console.log(`🕐 No storm selected, using current timestamp: ${currentTimestamp}`);
+        }
+      } catch (error) {
+        console.error('Failed to load timestamps for storm:', error);
+        // Fallback
+        if (AVAILABLE_TIMESTAMPS.length > 0) {
+          setWindTimestamp(AVAILABLE_TIMESTAMPS[0].timestamp);
         }
       }
     };
     
-    initializeCurrentTimestamp();
-  }, []);
+    loadTimestampsForStorm();
+  }, [selectedStorm?.storm_id, selectedStorm?.start_date, selectedStorm?.end_date]);
 
   // Load storm tracks when selectedStorm changes or map becomes ready
   useEffect(() => {
@@ -148,8 +171,8 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
 
     const newMap = new mapboxgl.Map({
       container: mapContainer.current,
-      // Sử dụng style đơn giản từ Mapbox
-      style: 'mapbox://styles/mapbox/dark-v11',
+      // Sử dụng light style - sáng hơn, dễ nhìn
+      style: 'mapbox://styles/mapbox/light-v11',
       center: [105.8342, 21.0278],
       zoom: 6,
       minZoom: 2,
@@ -855,19 +878,24 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
     setWindAnimationEnabled(enabled);
   }, []);
 
-  return (
-    <div className="relative w-full h-full bg-[#0a1929]">
-      <div ref={mapContainer} className="w-full h-full" />
+  // Debug log
+  console.log('🔍 Map render - stormFilter:', stormFilter, 'windTimestamp:', windTimestamp);
 
-      {/* Wind Layer with real data - always enabled */}
-      <WindLayer
-        map={map.current}
-        enabled={true}
-        opacity={windOpacity}
-        timestamp={windTimestamp}
-        onLoadingChange={setWindLoading}
-        onDataLoaded={setWindData}
-      />
+  return (
+    <div className="relative w-full h-full bg-[#e8eef2]">
+      <div ref={mapContainer} className="w-full h-full relative z-20" />
+
+      {/* Wind Layer - only enabled in Live mode and when wind toggle is on */}
+      {stormFilter === 'live' && windEnabled && (
+        <WindLayer
+          map={map.current}
+          enabled={true}
+          opacity={windOpacity}
+          timestamp={windTimestamp}
+          onLoadingChange={setWindLoading}
+          onDataLoaded={setWindData}
+        />
+      )}
 
       {/* Wind Particles Layer - Custom WebGL implementation (Windy.com style) */}
       {/* TEMPORARILY DISABLED - Will implement later */}
@@ -889,26 +917,50 @@ export default function Map({ onMapReady, rescueRequests = [], newsItems = [], a
         />
       )}
 
-      {/* Docked Controls Row */}
-      <div className="absolute bottom-4 left-0 right-24 z-10 px-4 pointer-events-none">
-        <div className="flex w-full items-end gap-6">
-          <TimeControls
-            currentTimestamp={windTimestamp}
-            onTimestampChange={setWindTimestamp}
-            selectedStorm={selectedStorm}
-            className="pointer-events-auto flex-1 ml-80"
-          />
+      {/* Wind Toggle - Top Right Corner */}
+      {stormFilter === 'live' && (
+        <div className="absolute top-4 right-4 z-30 pointer-events-auto">
+          <label className="flex items-center gap-2 px-3 py-2 bg-[#1a2332]/90 backdrop-blur-sm rounded-lg hover:bg-[#1a2332] cursor-pointer border border-white/10 shadow-lg">
+            <input
+              type="checkbox"
+              checked={windEnabled}
+              onChange={(e) => setWindEnabled(e.target.checked)}
+              className="rounded bg-transparent border-white/50 text-[#137fec] focus:ring-[#137fec] focus:ring-offset-0 w-4 h-4"
+            />
+            <span className="text-sm font-semibold text-white">Hiển thị gió</span>
+          </label>
+        </div>
+      )}
 
+      {/* Time Navigation - Bottom Center (Live mode only) */}
+      {stormFilter === 'live' && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 pointer-events-auto">
+          <div className="bg-[#0a1929]/95 backdrop-blur-sm rounded-lg px-4 py-3 shadow-2xl border border-white/10">
+            <TimeControls
+              currentTimestamp={windTimestamp}
+              onTimestampChange={setWindTimestamp}
+              selectedStorm={selectedStorm}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Debug Info - Remove this later */}
+      <div className="absolute top-20 right-4 z-50 bg-red-500/90 text-white px-3 py-2 rounded text-xs">
+        StormFilter: {stormFilter}
+      </div>
+
+      {/* Wind Legend - Bottom Right (Live mode only) */}
+      {stormFilter === 'live' && (
+        <div className="absolute bottom-4 right-4 z-10 pointer-events-auto">
           <WindLegend
             opacity={windOpacity}
             timestamp={windTimestamp}
             isLoading={windLoading}
-            onOpacityChange={setWindOpacity}
             onWindAnimationToggle={handleWindAnimationToggle}
-            className="pointer-events-auto"
           />
         </div>
-      </div>
+      )}
 
       {/* Zoom Controls - Zoom buttons and Location */}
       <ZoomControls

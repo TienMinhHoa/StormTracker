@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
-const API_BASE_URL = 'http://118.70.181.146:58888/api/v1';
-
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+console.log('🔧 Backend URL for damage route:', API_BASE_URL);
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -11,7 +11,7 @@ export async function GET(request: Request) {
     console.log(`📡 Fetching storms: skip=${skip}, limit=${limit}`);
 
     const response = await fetch(
-      `${API_BASE_URL}/storms/?skip=${skip}&limit=${limit}`,
+      `${API_BASE_URL}/api/v1/storms/?skip=${skip}&limit=${limit}`,
       {
         method: 'GET',
         headers: {

@@ -56,7 +56,7 @@ export default function ChatbotTab({ stormId }: ChatbotTabProps) {
         setIsConnected(true);
         setIsConnecting(false);
         setConnectionError(null);
-        addMessage('Đã kết nối với AI Assistant. Bạn có thể bắt đầu trò chuyện!', false);
+        // addMessage('Đã kết nối với AI Assistant. Bạn có thể bắt đầu trò chuyện!', false);
       };
 
       ws.onmessage = (event) => {

@@ -26,46 +26,27 @@ export default function TimeControls({
   const [isDragging, setIsDragging] = useState(false);
   const pendingIndexRef = useRef<number>(0);
 
-  // Filter timestamps based on storm's date range
+  // Use AVAILABLE_TIMESTAMPS which is already filtered by tiffService based on storm
   const availableTimestamps = useMemo(() => {
-    if (!selectedStorm) {
-      return AVAILABLE_TIMESTAMPS;
+    // AVAILABLE_TIMESTAMPS được filter sẵn bởi getTimestampsForStorm() trong Map.tsx
+    // Không cần filter lại ở đây nữa
+    const timestamps = AVAILABLE_TIMESTAMPS;
+
+    if (timestamps.length === 0) {
+      console.warn('⚠️ No GFS timestamps available');
+      return [];
     }
 
-    // Parse storm dates as UTC (they come with 'Z' suffix from API)
-    const startDate = new Date(selectedStorm.start_date);
-    const endDate = selectedStorm.end_date ? new Date(selectedStorm.end_date) : new Date();
-
-    // Filter timestamps that fall within storm's date range
-    // GFS timestamps are in "YYYY-MM-DD HH:MM" format (local time)
-    // We need to compare them properly with UTC storm dates
-    const filtered = ALL_AVAILABLE_TIMESTAMPS.filter(timestamp => {
-      // Parse GFS timestamp as local time, then convert to UTC for comparison
-      const [datePart, timePart] = timestamp.timestamp.split(' ');
-      const [year, month, day] = datePart.split('-').map(Number);
-      const [hours, minutes] = timePart.split(':').map(Number);
-
-      // Create date in local timezone, then get UTC time for comparison
-      const localDate = new Date(year, month - 1, day, hours, minutes);
-      const timestampUtc = new Date(localDate.getTime() - (localDate.getTimezoneOffset() * 60000));
-
-      return timestampUtc >= startDate && timestampUtc <= endDate;
-    });
-
-    // If no timestamps match, fallback to all available (better UX)
-    if (filtered.length === 0) {
-      console.warn('⚠️ No GFS timestamps match storm date range, using all available timestamps');
-      console.warn(`   Storm: ${selectedStorm.start_date} to ${selectedStorm.end_date || 'now'}`);
-      console.warn(`   Available GFS range: ${ALL_AVAILABLE_TIMESTAMPS[0]?.timestamp} to ${ALL_AVAILABLE_TIMESTAMPS[ALL_AVAILABLE_TIMESTAMPS.length - 1]?.timestamp}`);
-      return AVAILABLE_TIMESTAMPS;
+    if (selectedStorm) {
+      console.log(`✅ Using ${timestamps.length} timestamps for storm ${selectedStorm.name}`);
+      console.log(`   Storm range: ${selectedStorm.start_date} to ${selectedStorm.end_date || 'ongoing'}`);
+      if (timestamps.length > 0) {
+        console.log(`   GFS range: ${timestamps[0]?.timestamp} to ${timestamps[timestamps.length - 1]?.timestamp}`);
+      }
     }
 
-    console.log(`✅ Filtered ${filtered.length} GFS timestamps for storm ${selectedStorm.name}`);
-    console.log(`   Storm range: ${selectedStorm.start_date} to ${selectedStorm.end_date || 'now'}`);
-    console.log(`   GFS range: ${filtered[0]?.timestamp} to ${filtered[filtered.length - 1]?.timestamp}`);
-
-    return filtered;
-  }, [selectedStorm]);
+    return timestamps;
+  }, [AVAILABLE_TIMESTAMPS, selectedStorm?.storm_id]);
 
   // Update currentIndex when currentTimestamp changes
   useEffect(() => {
@@ -173,121 +154,51 @@ export default function TimeControls({
 
   return (
     <div className={className}>
-      <div className="flex items-center gap-3 w-full">
+      <div className="flex items-center justify-center gap-4">
         {/* Previous Button */}
         <button
           onClick={handlePrevious}
           disabled={isFirstTimestamp || availableTimestamps.length === 0}
-          className={`flex items-center justify-center w-9 h-9 rounded-full transition-all duration-200 ${
+          className={`flex items-center justify-center w-10 h-10 rounded-full transition-all duration-200 ${
             isFirstTimestamp || availableTimestamps.length === 0
-              ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-              : 'bg-[#137fec] hover:bg-[#137fec]/80 text-white shadow-lg shadow-[#137fec]/30'
+              ? 'bg-gray-700/50 text-gray-500 cursor-not-allowed'
+              : 'bg-[#137fec] hover:bg-[#137fec]/80 text-white shadow-lg shadow-[#137fec]/30 hover:scale-110'
           }`}
           title="Giờ trước"
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
           </svg>
         </button>
 
-        {/* Play/Pause Button */}
-        <button
-          onClick={handlePlayPause}
-          disabled={availableTimestamps.length === 0}
-          className={`flex items-center justify-center w-9 h-9 rounded-full transition-colors ${
-            availableTimestamps.length === 0
-              ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-              : 'bg-[#137fec] hover:bg-[#137fec]/80 text-white shadow-lg shadow-[#137fec]/30'
-          }`}
-          title={playing ? 'Pause' : 'Play'}
-        >
-          {playing ? (
-            <span className="text-sm">⏸️</span>
-          ) : (
-            <span className="text-sm">▶️</span>
+        {/* Current Time Display */}
+        <div className="flex flex-col items-center gap-1 min-w-[200px] px-4 py-2 bg-[#1a2332]/90 backdrop-blur-sm rounded-lg border border-white/10">
+          <span className="text-xs text-gray-400 font-medium">Thời gian dự báo</span>
+          <span className="text-base font-bold text-white font-mono">
+            {availableTimestamps[currentIndex]?.timestamp || 'N/A'}
+          </span>
+          {availableTimestamps.length > 0 && (
+            <span className="text-xs text-gray-500">
+              {currentIndex + 1} / {availableTimestamps.length}
+            </span>
           )}
-        </button>
+        </div>
 
         {/* Next Button */}
         <button
           onClick={handleNext}
           disabled={isLastTimestamp || availableTimestamps.length === 0}
-          className={`flex items-center justify-center w-9 h-9 rounded-full transition-all duration-200 ${
+          className={`flex items-center justify-center w-10 h-10 rounded-full transition-all duration-200 ${
             isLastTimestamp || availableTimestamps.length === 0
-              ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-              : 'bg-[#137fec] hover:bg-[#137fec]/80 text-white shadow-lg shadow-[#137fec]/30'
+              ? 'bg-gray-700/50 text-gray-500 cursor-not-allowed'
+              : 'bg-[#137fec] hover:bg-[#137fec]/80 text-white shadow-lg shadow-[#137fec]/30 hover:scale-110'
           }`}
           title="Giờ sau"
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
           </svg>
         </button>
-
-        {/* Time Slider */}
-        <div className="flex-1 min-w-[220px]">
-          <div className="flex items-center justify-between mb-2 pr-4">
-            <label className="text-sm font-medium text-white tracking-wide">
-              Thời gian dự báo gió
-            </label>
-            <span className="text-xs text-gray-300 font-mono">
-              {availableTimestamps[currentIndex]?.timestamp || 'N/A'}
-            </span>
-          </div>
-
-          {/* Custom styled slider */}
-          <div className="relative pr-4">
-            {availableTimestamps.length === 0 ? (
-              <div className="w-full h-2 bg-gray-700/70 rounded-full flex items-center justify-center">
-                <span className="text-xs text-gray-400">Không có dữ liệu thời gian</span>
-              </div>
-            ) : (
-              <input
-                type="range"
-                min="0"
-                max={Math.max(0, availableTimestamps.length - 1)}
-                value={currentIndex}
-                onChange={handleSliderChange}
-                onMouseDown={handleSliderMouseDown}
-                onMouseUp={handleSliderMouseUp}
-                onMouseLeave={handleSliderMouseUp}
-                className="w-full h-2 bg-gray-700/70 rounded-full appearance-none cursor-pointer
-                       [&::-webkit-slider-thumb]:appearance-none
-                       [&::-webkit-slider-thumb]:w-4
-                       [&::-webkit-slider-thumb]:h-4
-                       [&::-webkit-slider-thumb]:bg-[#137fec]
-                       [&::-webkit-slider-thumb]:rounded-full
-                       [&::-webkit-slider-thumb]:cursor-pointer
-                       [&::-webkit-slider-thumb]:border-2
-                       [&::-webkit-slider-thumb]:border-white
-                       [&::-webkit-slider-thumb]:shadow-lg
-                       [&::-moz-range-thumb]:w-4
-                       [&::-moz-range-thumb]:h-4
-                       [&::-moz-range-thumb]:bg-[#137fec]
-                       [&::-moz-range-thumb]:rounded-full
-                       [&::-moz-range-thumb]:cursor-pointer
-                       [&::-moz-range-thumb]:border-2
-                       [&::-moz-range-thumb]:border-white
-                       [&::-moz-range-thumb]:shadow-lg"
-                style={{
-                  background: `linear-gradient(to right,
-                    #137fec 0%,
-                    #137fec ${progressPercentage}%,
-                    #374151 ${progressPercentage}%,
-                    #374151 100%)`
-                }}
-              />
-            )}
-
-            {/* Time labels */}
-            {availableTimestamps.length > 0 && (
-              <div className="flex justify-between text-xs text-gray-500 mt-1">
-                <span>{availableTimestamps[0]?.timestamp || ''}</span>
-                <span>{availableTimestamps[availableTimestamps.length - 1]?.timestamp || ''}</span>
-              </div>
-            )}
-          </div>
-        </div>
       </div>
     </div>
   );

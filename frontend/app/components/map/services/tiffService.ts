@@ -138,6 +138,40 @@ export async function refreshTimestamps(): Promise<WindTimestamp[]> {
   return await initializeTimestamps();
 }
 
+/**
+ * Filter timestamps theo khoảng thời gian của cơn bão
+ * @param startDate - Ngày bắt đầu cơn bão (ISO string)
+ * @param endDate - Ngày kết thúc cơn bão (ISO string hoặc null nếu đang hoạt động)
+ * @returns Danh sách timestamps trong khoảng thời gian của bão
+ */
+export async function getTimestampsForStorm(
+  startDate: string, 
+  endDate: string | null
+): Promise<WindTimestamp[]> {
+  // Đảm bảo đã load timestamps
+  if (ALL_AVAILABLE_TIMESTAMPS.length === 0) {
+    await initializeTimestamps();
+  }
+
+  const start = new Date(startDate);
+  const end = endDate ? new Date(endDate) : new Date(); // Nếu chưa kết thúc thì dùng thời điểm hiện tại
+
+  console.log(`🌀 Filtering timestamps for storm: ${start.toISOString()} to ${end.toISOString()}`);
+
+  // Lọc timestamps trong khoảng thời gian của bão
+  const filtered = ALL_AVAILABLE_TIMESTAMPS.filter(timestamp => {
+    const tsDate = new Date(timestamp.timestamp.replace(' ', 'T'));
+    return tsDate >= start && tsDate <= end;
+  });
+
+  console.log(`✅ Found ${filtered.length} timestamps for storm period`);
+  
+  // Update AVAILABLE_TIMESTAMPS để các component khác sử dụng
+  AVAILABLE_TIMESTAMPS = filtered;
+  
+  return filtered;
+}
+
 export interface TIFFWindData {
   u: Float32Array; // U component (eastward wind)
   v: Float32Array; // V component (northward wind)

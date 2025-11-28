@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const API_BASE_URL = 'http://118.70.181.146:58888/api/v1';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export async function GET(
   request: NextRequest,
@@ -10,7 +10,7 @@ export async function GET(
     const { stormId } = await params;
 
     const response = await fetch(
-      `${API_BASE_URL}/forecasts/storm/${stormId}/latest`,
+      `${API_BASE_URL}/api/v1/forecasts/storm/${stormId}/latest`,
       {
         method: 'GET',
         headers: {

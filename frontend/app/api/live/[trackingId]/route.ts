@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8888';
 
 export async function GET(
   request: NextRequest,
@@ -8,7 +8,7 @@ export async function GET(
 ) {
   try {
     const { trackingId } = await params;
-    const url = `${API_BASE_URL}/storms/${trackingId}/tracks`;
+    const url = `${API_BASE_URL}/api/v1/storms/${trackingId}/tracks`;
 
     console.log('🔄 Proxying live tracking request:', url);
 

@@ -19,6 +19,7 @@ type SidebarProps = {
   onWarningClick?: (warning: any) => void;
   onTabChange?: (tab: Tab) => void;
   onStormChange?: (storm: Storm | null) => void;
+  onStormFilterChange?: (filter: 'history' | 'live') => void;
   selectedNewsId?: number | null;
   selectedStorm?: Storm | null;
   selectedWarning?: any;
@@ -43,6 +44,7 @@ export default function Sidebar({
   onWarningClick,
   onTabChange,
   onStormChange,
+  onStormFilterChange,
   selectedNewsId,
   selectedStorm,
   selectedWarning,
@@ -67,7 +69,7 @@ export default function Sidebar({
   const [selectedStormLocal, setSelectedStormLocal] = useState<Storm | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(320); // Default width in pixels
   const [isResizing, setIsResizing] = useState(false);
-  const [stormFilter, setStormFilter] = useState<'recent3' | 'recent10' | 'all' | 'realtime'>('recent3');
+  const [stormFilter, setStormFilter] = useState<'history' | 'live'>('history');
   const [filteredStorms, setFilteredStorms] = useState<Storm[]>([]);
   const [isMounted, setIsMounted] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -117,8 +119,8 @@ export default function Sidebar({
   const filterStorms = async (allStorms: Storm[], filter: typeof stormFilter) => {
     let filtered: Storm[] = [];
     
-    if (filter === 'realtime') {
-      // Real-time mode: Query live tracking data
+    if (filter === 'live') {
+      // Live mode: Query live tracking data (ID = NOWLIVE1234)
       setIsLoadingLive(true);
       try {
         const liveTrackingData = await getLiveTracking('NOWLIVE1234');
@@ -148,16 +150,10 @@ export default function Sidebar({
       } finally {
         setIsLoadingLive(false);
       }
-    } else {
-      // Normal mode: show historical storms
+    } else if (filter === 'history') {
+      // History mode: Show all storms (recent first)
       setLiveData(null);
-      if (filter === 'recent3') {
-        filtered = allStorms.slice(0, 3);
-      } else if (filter === 'recent10') {
-        filtered = allStorms.slice(0, 10);
-      } else {
-        filtered = allStorms;
-      }
+      filtered = allStorms; // Tất cả các bão, đã được sort theo ngày gần nhất
       
       setFilteredStorms(filtered);
       
@@ -166,7 +162,7 @@ export default function Sidebar({
         const firstStorm = filtered[0];
         setSelectedStormLocal(firstStorm);
         onStormChange?.(firstStorm);
-        console.log('🌪️ Auto-selected first storm:', firstStorm.name);
+        console.log('📜 Auto-selected first historical storm:', firstStorm.name);
       }
     }
   };
@@ -176,7 +172,9 @@ export default function Sidebar({
     if (storms.length > 0) {
       filterStorms(storms, stormFilter);
     }
-  }, [stormFilter]);
+    // Notify parent about filter change
+    onStormFilterChange?.(stormFilter);
+  }, [stormFilter, onStormFilterChange]);
 
   // Ensure selectedStorm is synced when selectedStormLocal changes (only on initial load)
   useEffect(() => {
@@ -359,49 +357,27 @@ export default function Sidebar({
                 </button>
               </div>
 
-              {/* Storm Filter */}
-              <div className="grid grid-cols-4 gap-1 mb-2">
+              {/* Storm Filter - 2 main options only */}
+              <div className="grid grid-cols-2 gap-2 mb-2">
                 <button
-                  onClick={() => setStormFilter('recent3')}
-                  className={`px-2 py-1 text-xs rounded transition-colors ${
-                    stormFilter === 'recent3'
+                  onClick={() => setStormFilter('history')}
+                  className={`px-3 py-2 text-sm rounded transition-colors font-medium ${
+                    stormFilter === 'history'
                       ? 'bg-teal-600 text-white'
                       : 'bg-[#1c2127] text-gray-400 hover:text-white'
                   }`}
-                  title="3 cơn gần nhất"
+                  title="Các cơn bão đã kết thúc trong quá khứ"
                 >
-                  3 gần
+                  📜 Lịch sử
                 </button>
                 <button
-                  onClick={() => setStormFilter('recent10')}
-                  className={`px-2 py-1 text-xs rounded transition-colors ${
-                    stormFilter === 'recent10'
-                      ? 'bg-teal-600 text-white'
-                      : 'bg-[#1c2127] text-gray-400 hover:text-white'
-                  }`}
-                  title="10 cơn gần nhất"
-                >
-                  10 gần
-                </button>
-                <button
-                  onClick={() => setStormFilter('all')}
-                  className={`px-2 py-1 text-xs rounded transition-colors ${
-                    stormFilter === 'all'
-                      ? 'bg-teal-600 text-white'
-                      : 'bg-[#1c2127] text-gray-400 hover:text-white'
-                  }`}
-                  title="Tất cả cơn bão"
-                >
-                  Tất cả
-                </button>
-                <button
-                  onClick={() => setStormFilter('realtime')}
-                  className={`px-2 py-1 text-xs rounded transition-colors ${
-                    stormFilter === 'realtime'
+                  onClick={() => setStormFilter('live')}
+                  className={`px-3 py-2 text-sm rounded transition-colors font-medium ${
+                    stormFilter === 'live'
                       ? 'bg-red-600 text-white animate-pulse'
                       : 'bg-[#1c2127] text-gray-400 hover:text-white'
                   }`}
-                  title="Chế độ thời gian thực - chỉ hiện bão đang hoạt động"
+                  title="Bão đang hoạt động (ID: NOWLIVE1234)"
                 >
                   🔴 Live
                 </button>
@@ -415,7 +391,9 @@ export default function Sidebar({
                   </div>
                 ) : filteredStorms.length === 0 ? (
                   <div className="w-full bg-[#1c2127] border border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-400 text-center">
-                    {stormFilter === 'realtime' ? '⏱️ Không có bão đang hoạt động' : 'Không có dữ liệu'}
+                    {stormFilter === 'live' ? '⏱️ Không có bão đang hoạt động' : 
+                     stormFilter === 'history' ? '📜 Không có bão đã kết thúc' : 
+                     'Không có dữ liệu'}
                   </div>
                 ) : (
                   <>
@@ -505,7 +483,7 @@ export default function Sidebar({
               )}
               {activeTab === 'rescue' && (
                 <RescueTab 
-                  onRescueClick={onRescueClick} 
+                  onRescueClick={onRescueClick as any} 
                   stormId={currentStorm?.storm_id}
                   showRescueMarkers={showRescueMarkers}
                   onShowRescueMarkersChange={onShowRescueMarkersChange}

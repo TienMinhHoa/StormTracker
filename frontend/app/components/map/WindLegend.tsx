@@ -7,7 +7,6 @@ interface WindLegendProps {
   opacity: number;
   timestamp?: string;
   isLoading?: boolean;
-  onOpacityChange: (opacity: number) => void;
   onWindAnimationToggle?: (enabled: boolean) => void;
   className?: string;
 }
@@ -16,7 +15,6 @@ export default function WindLegend({
   opacity,
   timestamp,
   isLoading = false,
-  onOpacityChange,
   onWindAnimationToggle,
   className,
 }: WindLegendProps) {
@@ -47,38 +45,6 @@ export default function WindLegend({
           <span className="text-[11px]">Wind Animation</span>
         </label>
       )}
-
-      {/* Opacity Control */}
-      <div className="flex items-center gap-3">
-        <span className="text-[11px] font-semibold flex-shrink-0">
-          Opacity: {Math.round(opacity * 100)}%
-        </span>
-        <input
-          type="range"
-          min="0"
-          max="1"
-          step="0.1"
-          value={opacity}
-          onInput={(e) => onOpacityChange(parseFloat((e.target as HTMLInputElement).value))}
-          onChange={(e) => onOpacityChange(parseFloat(e.target.value))}
-          className="flex-1 h-1.5 bg-gray-700/50 rounded-full appearance-none cursor-pointer
-                   [&::-webkit-slider-thumb]:appearance-none
-                   [&::-webkit-slider-thumb]:w-3
-                   [&::-webkit-slider-thumb]:h-3
-                   [&::-webkit-slider-thumb]:bg-white
-                   [&::-webkit-slider-thumb]:rounded-full
-                   [&::-webkit-slider-thumb]:cursor-pointer
-                   [&::-webkit-slider-thumb]:border
-                   [&::-webkit-slider-thumb]:border-[#137fec]
-                   [&::-moz-range-thumb]:w-3
-                   [&::-moz-range-thumb]:h-3
-                   [&::-moz-range-thumb]:bg-white
-                   [&::-moz-range-thumb]:rounded-full
-                   [&::-moz-range-thumb]:cursor-pointer
-                   [&::-moz-range-thumb]:border
-                   [&::-moz-range-thumb]:border-[#137fec]"
-        />
-      </div>
 
       {/* Timestamp Indicator
       {timestamp && (
